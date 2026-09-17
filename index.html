@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>EuroCad</title>
+<meta name="description" content="Convertisseur EUR / CAD instantané, fonctionne hors-ligne.">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0e1014" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+:root{
+  --bg:#f6f7f9; --surface:#ffffff; --line:#e3e6ea;
+  --text:#12141a; --muted:#6b7280; --accent:#1d4ed8;
+  --ok:#16a34a; --stale:#d97706; --old:#9ca3af;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0e1014; --surface:#171a20; --line:#262b34;
+    --text:#f0f2f6; --muted:#939bab; --accent:#6ea8ff;
+    --ok:#22c55e; --stale:#f59e0b; --old:#8b93a1;
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--text);
+  font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  min-height:100dvh; display:flex; flex-direction:column;
+  padding:calc(env(safe-area-inset-top) + 12px) calc(env(safe-area-inset-right) + 16px)
+          calc(env(safe-area-inset-bottom) + 12px) calc(env(safe-area-inset-left) + 16px);
+  overscroll-behavior:none;
+}
+header{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);min-height:20px}
+#dot{width:9px;height:9px;border-radius:50%;background:var(--old);flex:none}
+#dot.ok{background:var(--ok)} #dot.stale{background:var(--stale)}
+main{flex:1;display:flex;flex-direction:column;justify-content:center;gap:10px;min-height:0;padding-bottom:9dvh}
+.row{
+  background:var(--surface); border:1px solid var(--line); border-radius:16px;
+  padding:14px 16px; display:flex; align-items:baseline; gap:12px;
+}
+.cur{font-size:15px;font-weight:600;color:var(--muted);flex:none;width:52px}
+#amt,#res{
+  flex:1;min-width:0;font-size:38px;font-weight:600;line-height:1.15;
+  text-align:right;font-variant-numeric:tabular-nums;letter-spacing:-.5px;
+}
+#amt{
+  border:0;background:transparent;color:var(--text);padding:0;
+  font-family:inherit;appearance:none;border-radius:0;
+}
+#amt:focus{outline:none}
+#amt::placeholder{color:var(--muted);opacity:.45}
+#res{color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#res.err{color:var(--muted);opacity:.5}
+/* Le clavier decimal d'Android n'a pas d'operateurs : on les fournit ici. */
+#keys{display:flex;gap:8px}
+#keys button{
+  flex:1;padding:11px 0;font-size:17px;font-family:inherit;color:var(--muted);
+  background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  cursor:pointer;touch-action:manipulation;
+}
+#keys button:active{background:var(--line)}
+#swap{
+  align-self:center;width:44px;height:44px;border-radius:50%;
+  background:var(--surface);border:1px solid var(--line);color:var(--text);
+  font-size:19px;cursor:pointer;touch-action:manipulation;
+  display:flex;align-items:center;justify-content:center;padding:0;
+}
+#swap:active{background:var(--line)}
+footer{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;color:var(--muted)}
+#rate{font-variant-numeric:tabular-nums}
+#hint{opacity:.7}
+.sw{display:flex;align-items:center;gap:7px;cursor:pointer;flex:none;user-select:none}
+.sw input{position:absolute;opacity:0;pointer-events:none}
+.track{width:34px;height:20px;border-radius:10px;background:var(--line);position:relative;transition:background .15s;flex:none}
+.track::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .15s}
+.sw input:checked + .track{background:var(--accent)}
+.sw input:checked + .track::after{transform:translateX(14px)}
+.sw input:focus-visible + .track{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+
+<header>
+  <span id="dot" aria-hidden="true"></span>
+  <span id="asof">taux de secours</span>
+</header>
+
+<main>
+  <div class="row">
+    <span class="cur" id="curFrom">EUR</span>
+    <input id="amt" type="text" inputmode="decimal" enterkeyhint="done" placeholder="0"
+           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+           aria-label="Montant à convertir" autofocus>
+  </div>
+
+  <div id="keys">
+    <button type="button" data-ins="+" aria-label="plus">+</button>
+    <button type="button" data-ins="-" aria-label="moins">−</button>
+    <button type="button" data-ins="*" aria-label="multiplié par">×</button>
+    <button type="button" data-ins="/" aria-label="divisé par">÷</button>
+    <button type="button" id="clr" aria-label="Effacer">⌫</button>
+  </div>
+
+  <button id="swap" type="button" aria-label="Inverser le sens de conversion">⇅</button>
+
+  <div class="row">
+    <span class="cur" id="curTo">CAD</span>
+    <output id="res" for="amt">0,00</output>
+  </div>
+</main>
+
+<footer>
+  <span id="rate"></span>
+  <label class="sw" title="Applique une marge de 2,5 % pour approcher le taux réellement facturé par une carte bancaire">
+    <input type="checkbox" id="fee">
+    <span class="track"></span>
+    <span>carte</span>
+  </label>
+</footer>
+
+<script>
+(function(){
+"use strict";
+
+// Taux de secours : BCE, utilisé uniquement au tout premier lancement hors-ligne.
+// Écrasé dès le premier chargement en ligne.
+var SEED = { rate: 1.6087, date: "2026-09-16", fetched: 0 };
+var API  = "https://api.frankfurter.app/latest?from=EUR&to=CAD";
+var FEE  = 0.025; // marge carte approximative
+
+var LS_RATE = "eurocad.rate", LS_DIR = "eurocad.dir", LS_FEE = "eurocad.fee";
+
+var amt   = document.getElementById("amt"),
+    res   = document.getElementById("res"),
+    dot   = document.getElementById("dot"),
+    asof  = document.getElementById("asof"),
+    rateL = document.getElementById("rate"),
+    curF  = document.getElementById("curFrom"),
+    curT  = document.getElementById("curTo"),
+    fee   = document.getElementById("fee");
+
+var nf  = new Intl.NumberFormat("fr-CA",{minimumFractionDigits:2,maximumFractionDigits:2});
+var nf4 = new Intl.NumberFormat("fr-CA",{minimumFractionDigits:2,maximumFractionDigits:4});
+var df  = new Intl.DateTimeFormat("fr-CA",{day:"numeric",month:"short"});
+
+function store(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+function load(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+
+var data = SEED;
+try{
+  var raw = load(LS_RATE);
+  if(raw){
+    var p = JSON.parse(raw);
+    if(p && typeof p.rate === "number" && isFinite(p.rate) && p.rate > 0) data = p;
+  }
+}catch(e){}
+
+var dir = load(LS_DIR) === "CADEUR" ? "CADEUR" : "EURCAD";
+fee.checked = load(LS_FEE) === "1";
+
+/* ---- Évaluation arithmétique (sans eval) ---------------------------------
+   expr := term (('+'|'-') term)*
+   term := factor (('*'|'/') factor)*
+   factor := ('-'|'+') factor | '(' expr ')' | nombre                       */
+function evaluate(src){
+  var s = String(src).replace(/\s+/g,"").replace(/,/g,".").replace(/×/g,"*").replace(/÷/g,"/");
+  if(!s) return null;
+  if(!/^[0-9.+\-*/()]+$/.test(s)) return null;
+  var i = 0;
+
+  function peek(){ return s.charAt(i); }
+
+  function factor(){
+    var c = peek();
+    if(c === "-"){ i++; var n = factor(); return n === null ? null : -n; }
+    if(c === "+"){ i++; return factor(); }
+    if(c === "("){
+      i++;
+      var v = expr();
+      if(v === null || peek() !== ")") return null;
+      i++;
+      return v;
+    }
+    var start = i;
+    while(i < s.length && /[0-9.]/.test(s.charAt(i))) i++;
+    if(i === start) return null;
+    var num = s.slice(start,i);
+    if(num.split(".").length > 2) return null;   // "1.2.3"
+    var n2 = parseFloat(num);
+    return isFinite(n2) ? n2 : null;
+  }
+
+  function term(){
+    var v = factor();
+    if(v === null) return null;
+    while(peek() === "*" || peek() === "/"){
+      var op = s.charAt(i++), r = factor();
+      if(r === null) return null;
+      if(op === "/" && r === 0) return null;
+      v = op === "*" ? v * r : v / r;
+    }
+    return v;
+  }
+
+  function expr(){
+    var v = term();
+    if(v === null) return null;
+    while(peek() === "+" || peek() === "-"){
+      var op = s.charAt(i++), r = term();
+      if(r === null) return null;
+      v = op === "+" ? v + r : v - r;
+    }
+    return v;
+  }
+
+  var out = expr();
+  if(out === null || i !== s.length || !isFinite(out)) return null;
+  return out;
+}
+
+// Parenthèses encore ouvertes pendant la frappe : on ferme provisoirement.
+function tryClose(s){
+  if(!s) return null;
+  var open = 0;
+  for(var k = 0; k < s.length; k++){
+    var c = s.charAt(k);
+    if(c === "(") open++; else if(c === ")") open--;
+  }
+  if(open > 0){
+    var pad = "";
+    while(pad.length < open) pad += ")";
+    return evaluate(s + pad);
+  }
+  return evaluate(s);
+}
+
+// Pendant la frappe "12+" n'est pas encore une expression valide. On ne rogne
+// QUE des caractères d'expression incomplète (opérateur, parenthèse ouvrante,
+// séparateur décimal) : rogner un chiffre transformerait une erreur réelle
+// ("5/0", "1.2.3") en montant faux affiché sans avertissement.
+function evalLoose(src){
+  var s = String(src);
+  for(;;){
+    var v = tryClose(s);
+    if(v !== null) return v;
+    if(!s.length || !/[+\-*\/(.,]$/.test(s)) return null;
+    s = s.slice(0,-1);
+  }
+}
+
+/* ---- Rendu --------------------------------------------------------------- */
+function convert(n){
+  var v = dir === "EURCAD" ? n * data.rate : n / data.rate;
+  // La marge carte renchérit toujours la conversion, quel que soit le sens :
+  // elle répond à « combien ça me coûte vraiment ? ».
+  return fee.checked ? v * (1 + FEE) : v;
+}
+
+function render(){
+  curF.textContent = dir === "EURCAD" ? "EUR" : "CAD";
+  curT.textContent = dir === "EURCAD" ? "CAD" : "EUR";
+
+  var v = evalLoose(amt.value);
+  if(amt.value.trim() === "" || v === null){
+    res.textContent = amt.value.trim() === "" ? nf.format(0) : "—";
+    res.classList.toggle("err", amt.value.trim() !== "");
+  }else{
+    res.classList.remove("err");
+    res.textContent = nf.format(convert(v));
+  }
+
+  var r = data.rate;
+  var round1 = Math.round(r*10)/10;
+  var shown  = dir === "EURCAD" ? r : 1/r;
+  var base   = dir === "EURCAD"
+    ? "1 € = " + nf4.format(r) + " $"
+    : "1 $ = " + nf4.format(1/r) + " €";
+  // Le repère de calcul mental ne s'affiche que s'il apporte quelque chose :
+  // sur un taux déjà rond il ne ferait que répéter la ligne.
+  var anchor = nf4.format(round1) === nf4.format(shown)
+    ? ""
+    : "  ·  ≈ " + (dir === "EURCAD" ? "×" : "÷") + nf4.format(round1);
+  rateL.textContent = base + anchor;
+
+  // Fraîcheur : la BCE ne publie qu'en semaine, d'où le palier large avant l'ambre.
+  var age = data.fetched ? Date.now() - data.fetched : Infinity;
+  var cls = age < 864e5 ? "ok" : (age < 3456e5 ? "stale" : "");
+  dot.className = cls;
+
+  var parts = data.date.split("-");
+  var d = new Date(+parts[0], +parts[1]-1, +parts[2]);
+  asof.textContent = data.fetched
+    ? "taux du " + df.format(d)
+    : "taux de secours du " + df.format(d);
+}
+
+/* ---- Interactions -------------------------------------------------------- */
+amt.addEventListener("input", render);
+
+// Rouvrir l'app ou revenir au champ sélectionne le montant précédent : taper
+// le remplace directement, sans passer par le retour arrière.
+amt.addEventListener("focus", function(){
+  try{ amt.select(); }catch(e){}
+});
+
+document.getElementById("keys").addEventListener("pointerdown", function(e){
+  var b = e.target.closest("button");
+  if(!b) return;
+  e.preventDefault();                       // ne pas voler le focus au champ
+  var s = amt.selectionStart, en = amt.selectionEnd, val = amt.value;
+  if(s === null){ s = en = val.length; }
+  if(b.id === "clr"){
+    if(s !== en){ amt.value = val.slice(0,s) + val.slice(en); }
+    else if(s > 0){ amt.value = val.slice(0,s-1) + val.slice(s); s--; }
+  }else{
+    var ins = b.getAttribute("data-ins");
+    amt.value = val.slice(0,s) + ins + val.slice(en);
+    s += ins.length;
+  }
+  amt.focus();
+  try{ amt.setSelectionRange(s,s); }catch(err){}
+  render();
+});
+
+document.getElementById("swap").addEventListener("click", function(){
+  dir = dir === "EURCAD" ? "CADEUR" : "EURCAD";
+  store(LS_DIR, dir);
+  render();
+  amt.focus();
+});
+
+fee.addEventListener("change", function(){
+  store(LS_FEE, fee.checked ? "1" : "0");
+  render();
+});
+
+render();
+
+/* ---- Taux frais en arrière-plan : l'UI n'attend jamais le réseau ---------- */
+function refresh(){
+  fetch(API, { cache: "no-store" })
+    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    .then(function(j){
+      var v = j && j.rates && j.rates.CAD;
+      if(typeof v !== "number" || !isFinite(v) || v <= 0) return;
+      data = { rate: v, date: j.date, fetched: Date.now() };
+      store(LS_RATE, JSON.stringify(data));
+      render();
+    })
+    .catch(function(){ /* hors-ligne : on garde le taux en cache */ });
+}
+refresh();
+window.addEventListener("online", refresh);
+document.addEventListener("visibilitychange", function(){
+  if(!document.hidden && Date.now() - (data.fetched||0) > 36e5) refresh();
+});
+
+if("serviceWorker" in navigator){
+  window.addEventListener("load", function(){
+    navigator.serviceWorker.register("sw.js").catch(function(){});
+  });
+}
+})();
+</script>
+</body>
+</html>
