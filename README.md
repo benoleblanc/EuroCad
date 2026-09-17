@@ -53,8 +53,11 @@ La virgule et le point sont acceptés indifféremment.
 
 ## Les taux
 
-Source : [Frankfurter](https://www.frankfurter.app/), qui republie les taux de
-référence de la **Banque centrale européenne**. Gratuit, sans clé d'API.
+Source principale : [Frankfurter](https://www.frankfurter.app/), qui republie les
+taux de référence de la **Banque centrale européenne**. Gratuit, sans clé d'API.
+En cas d'indisponibilité, [open.er-api.com](https://open.er-api.com/) prend le
+relais — une app de voyage ne doit pas rester sur un taux périmé parce qu'un
+service est momentanément en panne.
 
 Deux limites à connaître :
 
@@ -69,7 +72,7 @@ Deux limites à connaître :
 ```bash
 npm install          # playwright, pour les tests et les icônes
 npm run serve        # http://localhost:8765
-npm test             # 91 vérifications : conversion, parseur, historique, hors-ligne, PWA
+npm test             # 92 vérifications : conversion, parseur, historique, hors-ligne, PWA
 npm run build        # dérive la version artifact et vérifie qu'elle rend
 npm run icons        # régénère icons/*.png
 ```

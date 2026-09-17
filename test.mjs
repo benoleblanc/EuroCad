@@ -23,7 +23,7 @@ page.on('pageerror', e => errors.push(String(e)));
 page.on('console', m => {
   if (m.type() !== 'error') return;
   const t = m.text();
-  if (/net::ERR_(FAILED|INTERNET_DISCONNECTED|ABORTED)/.test(t)) return; // coupure reseau voulue
+  if (/^Failed to load resource: net::ERR_/.test(t)) return; // coupure reseau voulue
   errors.push(t);
 });
 
@@ -136,12 +136,37 @@ check('pastille fraiche', await page.getAttribute('#dot', 'class'), 'ok');
 check('date affichee', (await page.textContent('#asof')).includes('17 sept'), 'true');
 check('repere masque sur taux rond', (await page.textContent('#rate')).includes('≈'), false);
 
+console.log('\n== Source de secours pour les taux ==');
+// Frankfurter en panne : la seconde source doit prendre le relais.
+await ctx.unroute('**/api.frankfurter.app/**');
+await ctx.route('**/api.frankfurter.app/**', r => r.abort());
+await ctx.route('**/open.er-api.com/**', r => r.fulfill({
+  status: 200, contentType: 'application/json',
+  body: JSON.stringify({ result: 'success', base_code: 'EUR',
+    time_last_update_utc: 'Thu, 17 Sep 2026 00:02:31 +0000', rates: { CAD: 1.8 } }),
+}));
+await page.evaluate(() => localStorage.removeItem('eurocad.rate'));
+await page.reload({ waitUntil: 'networkidle' });
+await page.waitForFunction(() => document.getElementById('rate').textContent.includes('1,80'),
+  null, { timeout: 5000 });
+check('la source de secours prend le relais', await type('10'), fr(10 * 1.8));
+check('pastille fraiche', await page.getAttribute('#dot', 'class'), 'ok');
+check('date de la source de secours', (await page.textContent('#asof')).includes('17 sept'), true);
+
+// Les deux en panne : on garde le dernier taux connu, sans planter.
+await ctx.unroute('**/open.er-api.com/**');
+await ctx.route('**/open.er-api.com/**', r => r.abort());
+await page.reload({ waitUntil: 'networkidle' });
+check('dernier taux conserve si tout echoue', await type('10'), fr(10 * 1.8));
+
+await ctx.unroute('**/open.er-api.com/**');
+
 console.log('\n== Hors-ligne (mode avion) ==');
 await page.waitForFunction(() => navigator.serviceWorker.controller !== null, null, { timeout: 8000 });
 await ctx.setOffline(true);
 await page.reload({ waitUntil: 'domcontentloaded' });
 check('app affichee hors-ligne', await page.isVisible('#amt'), true);
-check('conversion hors-ligne',   await type('10'), fr(10 * 1.70)); // dernier taux connu
+check('conversion hors-ligne',   await type('10'), fr(10 * 1.8)); // dernier taux connu
 await ctx.setOffline(false);
 
 console.log('\n== Bouton C (tout effacer) ==');

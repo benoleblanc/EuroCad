@@ -33,11 +33,15 @@
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
-html,body{margin:0;padding:0}
+html,body{margin:0;padding:0;overflow:hidden}
 body{
   background:var(--bg); color:var(--text);
   font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  min-height:100dvh; display:flex; flex-direction:column;
+  /* Chrome Android ne réduit PAS la fenêtre quand le clavier s'ouvre : il ne
+     rétrécit que la zone visible. --vvh est mesuré par le code sur
+     visualViewport, sinon tout le bas de l'app passerait sous le clavier. */
+  position:fixed; top:0; left:0; right:0;
+  height:var(--vvh, 100dvh); display:flex; flex-direction:column;
   padding:calc(env(safe-area-inset-top) + 12px) calc(env(safe-area-inset-right) + 16px)
           calc(env(safe-area-inset-bottom) + 12px) calc(env(safe-area-inset-left) + 16px);
   overscroll-behavior:none;
@@ -112,7 +116,8 @@ footer{display:flex;align-items:center;justify-content:space-between;gap:12px;fo
 
 /* ---- Historique : panneau plein écran, hors du chemin rapide ------------- */
 #panel{
-  position:fixed;inset:0;z-index:10;background:var(--bg);display:flex;flex-direction:column;
+  position:fixed;top:0;left:0;right:0;height:var(--vvh, 100dvh);
+  z-index:10;background:var(--bg);display:flex;flex-direction:column;
   padding:calc(env(safe-area-inset-top) + 12px) calc(env(safe-area-inset-right) + 16px)
           calc(env(safe-area-inset-bottom) + 12px) calc(env(safe-area-inset-left) + 16px);
 }
@@ -146,26 +151,36 @@ footer{display:flex;align-items:center;justify-content:space-between;gap:12px;fo
 button:focus-visible,input:focus-visible,.sw input:focus-visible + .track{outline:2px solid var(--accent);outline-offset:2px}
 @media (prefers-reduced-motion: reduce){ *{transition:none!important} }
 
-/* Clavier ouvert : la hauteur disponible fond. On réduit par paliers au lieu
-   de laisser les blocs s'écraser les uns sur les autres. */
-@media (max-height:640px){
-  body{padding-top:calc(env(safe-area-inset-top) + 8px);padding-bottom:calc(env(safe-area-inset-bottom) + 8px)}
-  main{gap:7px}
-  .row{padding:10px 14px;border-radius:13px}
-  #amt,#res{font-size:30px}
-  #keys button{padding:9px 0;font-size:16px}
-  #swap{width:38px;height:38px;font-size:17px}
-  #note,#save{padding-top:8px;padding-bottom:8px}
-}
-@media (max-height:470px){
-  main{gap:5px}
-  .row{padding:7px 12px}
-  #amt,#res{font-size:23px}
-  #swap{width:30px;height:30px;font-size:15px}
-  #keys button{padding:7px 0;font-size:15px}
-  header,footer{font-size:12px}
-  header{min-height:26px}
-}
+/* Clavier ouvert : la zone visible fond. Ces paliers sont posés par le code à
+   partir de visualViewport — une media query ne verrait pas le clavier. */
+body.compact{padding-top:calc(env(safe-area-inset-top) + 8px);padding-bottom:calc(env(safe-area-inset-bottom) + 8px)}
+body.compact main{gap:7px}
+body.compact .row{padding:10px 14px;border-radius:13px}
+body.compact #amt,body.compact #res{font-size:30px}
+body.compact #keys button{padding:9px 0;font-size:16px}
+body.compact #swap{width:38px;height:38px;font-size:17px}
+body.compact #note,body.compact #save{padding-top:8px;padding-bottom:8px}
+
+body.tight main{gap:5px}
+body.tight .row{padding:7px 12px}
+body.tight #amt,body.tight #res{font-size:23px}
+body.tight #swap{width:30px;height:30px;font-size:15px}
+body.tight #keys button{padding:7px 0;font-size:15px}
+body.tight header,body.tight footer{font-size:12px}
+body.tight header{min-height:26px}
+body.tight .ghost{padding:4px 9px}
+
+body.micro main{gap:4px}
+body.micro .row{padding:5px 11px;border-radius:11px}
+body.micro #amt,body.micro #res{font-size:19px}
+body.micro .cur{font-size:13px;width:42px}
+body.micro #swap{width:24px;height:24px;font-size:13px}
+body.micro #keys{gap:4px}
+body.micro #keys button{padding:5px 0;font-size:14px}
+body.micro #note,body.micro #save{padding-top:5px;padding-bottom:5px;font-size:13px}
+body.micro #save{min-width:88px}
+body.micro header,body.micro footer{font-size:11px}
+body.micro header{min-height:22px}
 </style>
 </head>
 <body>
@@ -235,7 +250,19 @@ button:focus-visible,input:focus-visible,.sw input:focus-visible + .track{outlin
 // Taux de secours : BCE, utilisé uniquement au tout premier lancement hors-ligne.
 // Écrasé dès le premier chargement en ligne.
 var SEED = { rate: 1.6087, date: "2026-09-16", fetched: 0 };
-var API  = "https://api.frankfurter.app/latest?from=EUR&to=CAD";
+// Deux sources, essayées dans l'ordre. Une app de voyage ne doit pas rester
+// sur un taux périmé parce qu'un service est momentanément indisponible.
+var SOURCES = [
+  { url: "https://api.frankfurter.app/latest?from=EUR&to=CAD",
+    pick: function(j){ return j && j.rates ? { rate: j.rates.CAD, date: j.date } : null; } },
+  { url: "https://open.er-api.com/v6/latest/EUR",
+    pick: function(j){
+      if(!j || !j.rates) return null;
+      var d = j.time_last_update_utc ? new Date(j.time_last_update_utc) : null;
+      return { rate: j.rates.CAD,
+               date: d && isFinite(d.getTime()) ? d.toISOString().slice(0,10) : null };
+    } }
+];
 var FEE  = 0.025;      // marge carte approximative
 var HMAX = 200;        // plafond de l'historique, pour ne pas gonfler sans fin
 
@@ -687,24 +714,54 @@ document.addEventListener("keydown", function(e){
   if(e.key === "Escape" && !panel.hidden) closeHist();
 });
 
+// Ajuste l'app à la zone réellement visible. Sans ça, le clavier d'Android
+// recouvre la moitié basse : Chrome ne redimensionne pas la fenêtre, il se
+// contente de réduire la zone visible, ce qu'aucune media query ne détecte.
+function fitViewport(){
+  var vv = window.visualViewport;
+  var h  = vv ? vv.height : window.innerHeight;
+  document.documentElement.style.setProperty("--vvh", h + "px");
+  var b = document.body.classList;
+  b.toggle("compact", h < 620);
+  b.toggle("tight",   h < 470);
+  b.toggle("micro",   h < 380);
+  if(window.scrollY) window.scrollTo(0, 0);
+}
+if(window.visualViewport){
+  window.visualViewport.addEventListener("resize", fitViewport);
+  window.visualViewport.addEventListener("scroll", fitViewport);
+}
+window.addEventListener("resize", fitViewport);
+window.addEventListener("orientationchange", fitViewport);
+fitViewport();
+
 applyTheme();
 render();
 
 /* ---- Taux frais en arrière-plan : l'UI n'attend jamais le réseau ---------- */
-function refresh(){
-  fetch(API, { cache: "no-store" })
+function refresh(i){
+  // Défensif : un écouteur d'événement passerait l'objet Event en 1er argument.
+  if(typeof i !== "number" || !(i >= 0)) i = 0;
+  if(i >= SOURCES.length) return;   // hors-ligne : on garde le taux en cache
+  var src = SOURCES[i];
+  fetch(src.url, { cache: "no-store" })
     .then(function(r){ if(!r.ok) throw 0; return r.json(); })
     .then(function(j){
-      var v = j && j.rates && j.rates.CAD;
-      if(typeof v !== "number" || !isFinite(v) || v <= 0) return;
-      data = { rate: v, date: j.date, fetched: Date.now() };
+      var got = src.pick(j);
+      var v = got && got.rate;
+      if(typeof v !== "number" || !isFinite(v) || v <= 0) throw 0;
+      data = {
+        rate: v,
+        date: got.date || new Date().toISOString().slice(0,10),
+        fetched: Date.now()
+      };
       store(LS_RATE, JSON.stringify(data));
       render();
     })
-    .catch(function(){ /* hors-ligne : on garde le taux en cache */ });
+    .catch(function(){ refresh(i + 1); });   // source suivante
 }
 refresh();
-window.addEventListener("online", refresh);
+window.addEventListener("online", function(){ refresh(); });
 document.addEventListener("visibilitychange", function(){
   if(!document.hidden && Date.now() - (data.fetched||0) > 36e5) refresh();
 });
