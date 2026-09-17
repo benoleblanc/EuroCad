@@ -37,7 +37,28 @@ body{
 header{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);min-height:20px}
 #dot{width:9px;height:9px;border-radius:50%;background:var(--old);flex:none}
 #dot.ok{background:var(--ok)} #dot.stale{background:var(--stale)}
-main{flex:1;display:flex;flex-direction:column;justify-content:center;gap:10px;min-height:0;padding-bottom:9dvh}
+main{flex:1;display:flex;flex-direction:column;justify-content:safe center;gap:10px;min-height:0}
+/* Clavier ouvert (ou artifact en demi-écran) : la hauteur disponible fond.
+   « safe center » empêche le contenu de déborder par le haut sous l'en-tête,
+   et les paliers ci-dessous réduisent au lieu de laisser les blocs s'écraser. */
+.row,#keys,#swap{flex:none}
+@media (max-height:600px){
+  body{padding-block:8px}
+  main{gap:6px}
+  .row{padding:10px 14px;border-radius:13px}
+  #amt,#res{font-size:30px}
+  #keys{gap:6px}
+  #keys button{padding:9px 0;font-size:16px}
+  #swap{width:38px;height:38px;font-size:17px}
+}
+@media (max-height:440px){
+  .row{padding:7px 12px}
+  #amt,#res{font-size:23px}
+  #swap{width:30px;height:30px;font-size:15px}
+  #keys button{padding:7px 0;font-size:15px}
+  header,footer{font-size:12px}
+}
+
 .row{
   background:var(--surface); border:1px solid var(--line); border-radius:16px;
   padding:14px 16px; display:flex; align-items:baseline; gap:12px;
@@ -102,6 +123,7 @@ footer{display:flex;align-items:center;justify-content:space-between;gap:12px;fo
     <button type="button" data-ins="-" aria-label="moins">−</button>
     <button type="button" data-ins="*" aria-label="multiplié par">×</button>
     <button type="button" data-ins="/" aria-label="divisé par">÷</button>
+    <button type="button" id="eq" aria-label="Calculer le total">=</button>
     <button type="button" id="clr" aria-label="Effacer">⌫</button>
   </div>
 
@@ -252,6 +274,14 @@ function evalLoose(src){
   }
 }
 
+// Réécrit un total dans le champ : arrondi au centime, sans séparateur de
+// milliers, pour rester ré-analysable par evaluate() au coup suivant.
+function plain(n){
+  var r = Math.round(n * 100) / 100;
+  var s = Math.abs(r - Math.round(r)) < 1e-9 ? String(Math.round(r)) : r.toFixed(2);
+  return s.replace(".", ",");
+}
+
 /* ---- Rendu --------------------------------------------------------------- */
 function convert(n){
   var v = dir === "EURCAD" ? n * data.rate : n / data.rate;
@@ -273,18 +303,22 @@ function render(){
     res.textContent = nf.format(convert(v));
   }
 
-  var r = data.rate;
-  var round1 = Math.round(r*10)/10;
-  var shown  = dir === "EURCAD" ? r : 1/r;
-  var base   = dir === "EURCAD"
-    ? "1 € = " + nf4.format(r) + " $"
-    : "1 $ = " + nf4.format(1/r) + " €";
+  // Le taux affiché doit être celui réellement appliqué au résultat, marge
+  // carte comprise : sinon la ligne du bas contredit le grand chiffre.
+  var shown = dir === "EURCAD" ? data.rate : 1/data.rate;
+  if(fee.checked) shown *= (1 + FEE);
+  var base = (dir === "EURCAD" ? "1 € = " + nf4.format(shown) + " $"
+                               : "1 $ = " + nf4.format(shown) + " €")
+           + (fee.checked ? " (carte)" : "");
+  // Repère mental : toujours exprimé sur le taux EUR→CAD, plus facile à
+  // manipuler de tête (« ÷1,6 ») que le 0,62 de l'autre sens.
+  var round1 = Math.round((dir === "EURCAD" ? shown : 1/shown)*10)/10;
   // Le repère de calcul mental ne s'affiche que s'il apporte quelque chose :
   // sur un taux déjà rond il ne ferait que répéter la ligne.
-  var anchor = nf4.format(round1) === nf4.format(shown)
+  var cmp = dir === "EURCAD" ? shown : 1/shown;
+  rateL.textContent = base + (nf4.format(round1) === nf4.format(cmp)
     ? ""
-    : "  ·  ≈ " + (dir === "EURCAD" ? "×" : "÷") + nf4.format(round1);
-  rateL.textContent = base + anchor;
+    : "  ·  ≈ " + (dir === "EURCAD" ? "×" : "÷") + nf4.format(round1));
 
   // Fraîcheur : la BCE ne publie qu'en semaine, d'où le palier large avant l'ambre.
   var age = data.fetched ? Date.now() - data.fetched : Infinity;
@@ -313,7 +347,15 @@ document.getElementById("keys").addEventListener("pointerdown", function(e){
   e.preventDefault();                       // ne pas voler le focus au champ
   var s = amt.selectionStart, en = amt.selectionEnd, val = amt.value;
   if(s === null){ s = en = val.length; }
-  if(b.id === "clr"){
+  if(b.id === "eq"){
+    // Replie « 100+50 » en « 150 » pour enchaîner « /2 ». Sans ça il faudrait
+    // prévoir une parenthèse avant de commencer à taper, ce que personne ne fait.
+    var total = evalLoose(val);
+    if(total !== null){
+      amt.value = plain(total);
+      s = amt.value.length;
+    }
+  }else if(b.id === "clr"){
     if(s !== en){ amt.value = val.slice(0,s) + val.slice(en); }
     else if(s > 0){ amt.value = val.slice(0,s-1) + val.slice(s); s--; }
   }else{

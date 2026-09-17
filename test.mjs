@@ -63,6 +63,27 @@ check('champ garde le focus', await page.evaluate(() => document.activeElement.i
 await page.click('#clr');
 check('retour arriere', (await page.textContent('#res')).trim(), fr(12 * RATE));
 
+console.log('\n== Bouton = (addition puis partage) ==');
+// Scenario reel : deux articles a 100 et 50, facture partagee en deux.
+await page.fill('#amt', '');
+await page.type('#amt', '100+50');
+check('100+50 avant =', (await page.textContent('#res')).trim(), fr(150 * RATE));
+await page.click('#eq');
+check('= replie le total', await page.inputValue('#amt'), '150');
+await page.click('#keys button[data-ins="/"]');
+await page.type('#amt', '2');
+check('puis /2 donne 75', (await page.textContent('#res')).trim(), fr(75 * RATE));
+check('focus conserve', await page.evaluate(() => document.activeElement.id), 'amt');
+
+await page.fill('#amt', '');
+await page.type('#amt', '10/3');
+await page.click('#eq');
+check('= arrondit au centime', await page.inputValue('#amt'), '3,33');
+await page.fill('#amt', '');
+await page.type('#amt', '5/0');
+await page.click('#eq');
+check('= ne touche pas a une expression invalide', await page.inputValue('#amt'), '5/0');
+
 console.log('\n== Selection au focus (retaper sans effacer) ==');
 await page.fill('#amt', '1234,56');
 await page.evaluate(() => document.getElementById('amt').blur());
@@ -89,7 +110,12 @@ console.log('\n== Marge carte ==');
 await page.click('#swap'); // retour EUR -> CAD
 await page.click('.sw');
 check('100 EUR + 2,5 %', (await page.textContent('#res')).trim(), fr(100 * RATE * 1.025));
+const rateTxt = await page.textContent('#rate');
+check('le taux affiche suit la marge', rateTxt.includes((RATE * 1.025).toLocaleString('fr-CA',
+  { minimumFractionDigits: 2, maximumFractionDigits: 4 })), true);
+check('la marge est signalee', rateTxt.includes('(carte)'), true);
 await page.click('.sw');
+check('retour au taux brut', (await page.textContent('#rate')).includes('(carte)'), false);
 
 console.log('\n== Persistance ==');
 await page.click('#swap');
