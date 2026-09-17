@@ -22,7 +22,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Le site est déjà statique : on ne recopie que les fichiers servis,
       # pour ne pas publier node_modules ni l'outillage de test.
@@ -32,7 +32,11 @@ jobs:
           cp index.html manifest.webmanifest sw.js _site/
           cp -r icons _site/
 
+      # enablement: active Pages via l'API si ce n'est pas deja fait, ce qui
+      # evite d'avoir a le regler a la main dans Settings -> Pages.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

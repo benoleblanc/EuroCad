@@ -74,5 +74,9 @@ jamais `eval` ni `new Function`.
 
 Chaque push sur `claude/currency-converter-app-9g3z21` publie le site via GitHub Actions.
 
-> ⚠️ **Réglage à faire une fois :** Settings → Pages → Source → **GitHub Actions**.
-> Sans ça, le workflow échoue.
+Le workflow active Pages tout seul (`configure-pages` avec `enablement: true`),
+il n'y a donc rien à régler à la main.
+
+> ⚠️ **GitHub Pages sur un dépôt privé nécessite un plan Pro ou Team.** Sur un
+> compte gratuit, il faut rendre le dépôt public (l'app ne contient ni clé ni
+> secret) ou l'héberger ailleurs, par exemple sur Netlify.
