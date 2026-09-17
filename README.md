@@ -74,9 +74,11 @@ jamais `eval` ni `new Function`.
 
 Chaque push sur `claude/currency-converter-app-9g3z21` publie le site via GitHub Actions.
 
-Le workflow active Pages tout seul (`configure-pages` avec `enablement: true`),
-il n'y a donc rien à régler à la main.
-
-> ⚠️ **GitHub Pages sur un dépôt privé nécessite un plan Pro ou Team.** Sur un
-> compte gratuit, il faut rendre le dépôt public (l'app ne contient ni clé ni
-> secret) ou l'héberger ailleurs, par exemple sur Netlify.
+> ⚠️ **Réglage à faire une fois :** Settings → Pages → Source → **GitHub Actions**.
+> Le workflow tente bien de l'activer seul (`enablement: true`), mais le
+> `GITHUB_TOKEN` n'a pas le droit de créer un site Pages
+> (« Resource not accessible by integration ») : ce premier réglage reste manuel.
+>
+> ⚠️ **Pages sur un dépôt privé demande un plan Pro ou Team.** Sur un compte
+> gratuit, il faut rendre le dépôt public — l'app ne contient ni clé ni secret —
+> ou l'héberger ailleurs (Netlify, Vercel), qui acceptent les dépôts privés.
