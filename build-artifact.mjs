@@ -19,7 +19,12 @@ s = '<title>' + s;
 s = s.replace(/<\/style>\s*<\/head>\s*<body>/, '</style>');
 s = s.replace(/<\/body>\s*<\/html>\s*$/, '');
 
-// 2. Le head retire emportait balises manifest / icones / theme-color : rien a faire.
+// 2. Liens manifest / icones : ils pointent vers des fichiers absents du bac a
+//    sable et n'y donneraient que des 404. La balise theme-color reste, elle
+//    est mise a jour par le code.
+s = s.replace(/^<link rel="manifest"[^>]*>\n/m, '');
+s = s.replace(/^<link rel="(?:apple-touch-)?icon"[^>]*>\n/gm, '');
+s = s.replace(/^<meta name="mobile-web-app-capable"[^>]*>\n/m, '');
 // 3. Service worker : inoperant dans un cadre isole.
 cut(/\nif\("serviceWorker" in navigator\)\{[\s\S]*?\n\}\n/, 'enregistrement du service worker');
 
