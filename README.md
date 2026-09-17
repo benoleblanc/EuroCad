@@ -69,6 +69,7 @@ Deux limites à connaître :
 npm install          # playwright, pour les tests et les icônes
 npm run serve        # http://localhost:8765
 npm test             # 78 vérifications : conversion, parseur, historique, hors-ligne, PWA
+npm run build        # dérive la version artifact et vérifie qu'elle rend
 npm run icons        # régénère icons/*.png
 ```
 
@@ -83,6 +84,7 @@ plus court possible.
 | `manifest.webmanifest` | Métadonnées d'installation |
 | `test.mjs` | Suite de tests Playwright |
 | `build-artifact.mjs` | Dérive la version « artifact Claude » depuis `index.html` |
+| `verify-artifact.mjs` | Ouvre la version dérivée dans un navigateur et vérifie qu'elle rend |
 
 Le calcul en ligne utilise un analyseur en descente récursive écrit à la main —
 jamais `eval` ni `new Function`.

@@ -14,8 +14,9 @@ const cut = (re, label) => {
 // 1. Squelette fourni par la plateforme.
 cut(/^[\s\S]*?<title>/, 'entete avant <title>');
 s = '<title>' + s;
-cut(/<\/style>\s*<\/head>\s*<body>/, 'fin de head');
-s = s.replace('</style>', '</style>');
+// On retire </head><body> mais on GARDE </style> : le supprimer laissait tout
+// le document a l'interieur de la feuille de style (page blanche).
+s = s.replace(/<\/style>\s*<\/head>\s*<body>/, '</style>');
 s = s.replace(/<\/body>\s*<\/html>\s*$/, '');
 
 // 2. Le head retire emportait balises manifest / icones / theme-color : rien a faire.

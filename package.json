@@ -6,6 +6,7 @@
   "scripts": {
     "serve": "python3 -m http.server 8765",
     "test": "node test.mjs",
+    "build": "node build-artifact.mjs eurocad-artifact.html && node verify-artifact.mjs eurocad-artifact.html",
     "icons": "node gen-icons.mjs"
   },
   "devDependencies": {
