@@ -144,6 +144,107 @@ check('app affichee hors-ligne', await page.isVisible('#amt'), true);
 check('conversion hors-ligne',   await type('10'), fr(10 * 1.70)); // dernier taux connu
 await ctx.setOffline(false);
 
+console.log('\n== Bouton C (tout effacer) ==');
+await page.fill('#amt', '1234,56');
+await page.click('#ac');
+check('champ vide apres C', await page.inputValue('#amt'), '');
+check('resultat remis a zero', (await page.textContent('#res')).trim(), fr(0));
+check('focus conserve apres C', await page.evaluate(() => document.activeElement.id), 'amt');
+
+console.log('\n== Historique ==');
+// Les tests precedents ont injecte un taux de 1,70 via l'API simulee. On revient
+// au taux de secours pour que les attentes ci-dessous restent sur RATE.
+await ctx.unroute('**/api.frankfurter.app/**');
+await ctx.route('**/api.frankfurter.app/**', r => r.abort());
+await page.evaluate(() => {
+  localStorage.removeItem('eurocad.hist');
+  localStorage.removeItem('eurocad.rate');
+});
+await page.reload({ waitUntil: 'networkidle' });
+check('taux revenu au secours', await page.evaluate(
+  () => document.getElementById('rate').textContent.includes('1,6087')), true);
+await page.click('#histBtn');
+check('etat vide annonce', (await page.textContent('#list')).includes('Aucune conversion'), true);
+await page.click('#close');
+check('panneau referme', await page.isHidden('#panel'), true);
+
+// Enregistre un calcul avec note.
+await page.fill('#amt', '100+50');
+await page.click('#eq');
+await page.fill('#note', 'souper');
+await page.click('#save');
+check('compteur a 1', await page.textContent('#count'), '1');
+check('champ note vide apres envoi', await page.inputValue('#note'), '');
+check('retour visuel', (await page.textContent('#save')).includes('Enregistr'), true);
+
+// Puis une conversion simple, sans note ni calcul.
+await page.fill('#amt', '20');
+await page.click('#save');
+check('compteur a 2', await page.textContent('#count'), '2');
+
+await page.click('#histBtn');
+const items = page.locator('.item');
+check('deux lignes', await items.count(), 2);
+const recent = (await items.nth(0).textContent()).replace(/\s+/g, ' ');
+check('la plus recente en premier', recent.includes('20,00 EUR'), true);
+const older = (await items.nth(1).textContent()).replace(/\s+/g, ' ');
+check('montant converti conserve', older.includes(fr(150 * RATE) + ' CAD'), true);
+check('note conservee', older.includes('souper'), true);
+check('calcul conserve malgre le repli par =', older.includes('100+50'), true);
+check('pas de calcul sur une saisie simple', recent.includes('100+50'), false);
+check('total affiche', (await page.textContent('#totals')).includes(fr(170 * RATE)), true);
+
+// Persistance reelle : rechargement complet.
+await page.reload({ waitUntil: 'networkidle' });
+check('historique survit au rechargement', await page.textContent('#count'), '2');
+
+// Suppression d'une ligne.
+await page.click('#histBtn');
+await page.locator('.item').nth(0).locator('.del').click();
+check('une ligne supprimee', await page.locator('.item').count(), 1);
+check('total recalcule', (await page.textContent('#totals')).includes(fr(150 * RATE)), true);
+
+// Tout effacer (confirmation navigateur).
+page.once('dialog', d => d.accept());
+await page.click('#wipe');
+check('historique vide', (await page.textContent('#list')).includes('Aucune conversion'), true);
+check('compteur efface', await page.textContent('#count'), '');
+await page.click('#close');
+
+console.log('\n== Calcul enchaine conserve en entier ==');
+await page.fill('#amt', '100+50');
+await page.click('#eq');
+await page.click('#keys button[data-ins="/"]');
+await page.type('#amt', '2');
+check('resultat du partage', (await page.textContent('#res')).trim(), fr(75 * RATE));
+await page.click('#save');
+await page.click('#histBtn');
+const chain = (await page.locator('.item').nth(0).textContent()).replace(/\s+/g, ' ');
+check('expression complete reconstituee', chain.includes('(100+50)/2'), true);
+check('montant partage enregistre', chain.includes('75,00 EUR'), true);
+page.once('dialog', d => d.accept());
+await page.click('#wipe');
+await page.click('#close');
+
+console.log('\n== Enregistrement refuse si rien de valide ==');
+await page.fill('#amt', '');
+await page.click('#save');
+check('champ vide non enregistre', await page.textContent('#count'), '');
+await page.fill('#amt', '5/0');
+await page.click('#save');
+check('expression invalide non enregistree', await page.textContent('#count'), '');
+
+console.log('\n== La note est traitee comme du texte, pas du balisage ==');
+await page.fill('#amt', '10');
+await page.fill('#note', '<img src=x onerror=alert(1)>');
+await page.click('#save');
+await page.click('#histBtn');
+check('aucune balise injectee', await page.locator('#list img').count(), 0);
+check('note affichee telle quelle', (await page.textContent('#list')).includes('<img src=x'), true);
+page.once('dialog', d => d.accept());
+await page.click('#wipe');
+await page.click('#close');
+
 console.log('\n== PWA ==');
 const man = await page.evaluate(async () => {
   const r = await fetch('manifest.webmanifest');

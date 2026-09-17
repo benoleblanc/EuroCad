@@ -18,13 +18,19 @@
   --ok:#16a34a; --stale:#d97706; --old:#9ca3af;
 }
 @media (prefers-color-scheme: dark){
-  :root{
+  :root:not([data-theme="light"]){
     --bg:#0e1014; --surface:#171a20; --line:#262b34;
     --text:#f0f2f6; --muted:#939bab; --accent:#6ea8ff;
     --ok:#22c55e; --stale:#f59e0b; --old:#8b93a1;
   }
 }
+:root[data-theme="dark"]{
+  --bg:#0e1014; --surface:#171a20; --line:#262b34;
+  --text:#f0f2f6; --muted:#939bab; --accent:#6ea8ff;
+  --ok:#22c55e; --stale:#f59e0b; --old:#8b93a1;
+}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
 html,body{margin:0;padding:0}
 body{
   background:var(--bg); color:var(--text);
@@ -34,31 +40,11 @@ body{
           calc(env(safe-area-inset-bottom) + 12px) calc(env(safe-area-inset-left) + 16px);
   overscroll-behavior:none;
 }
-header{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);min-height:20px}
+header{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);min-height:32px;flex:none}
 #dot{width:9px;height:9px;border-radius:50%;background:var(--old);flex:none}
 #dot.ok{background:var(--ok)} #dot.stale{background:var(--stale)}
 main{flex:1;display:flex;flex-direction:column;justify-content:safe center;gap:10px;min-height:0}
-/* Clavier ouvert (ou artifact en demi-écran) : la hauteur disponible fond.
-   « safe center » empêche le contenu de déborder par le haut sous l'en-tête,
-   et les paliers ci-dessous réduisent au lieu de laisser les blocs s'écraser. */
-.row,#keys,#swap{flex:none}
-@media (max-height:600px){
-  body{padding-block:8px}
-  main{gap:6px}
-  .row{padding:10px 14px;border-radius:13px}
-  #amt,#res{font-size:30px}
-  #keys{gap:6px}
-  #keys button{padding:9px 0;font-size:16px}
-  #swap{width:38px;height:38px;font-size:17px}
-}
-@media (max-height:440px){
-  .row{padding:7px 12px}
-  #amt,#res{font-size:23px}
-  #swap{width:30px;height:30px;font-size:15px}
-  #keys button{padding:7px 0;font-size:15px}
-  header,footer{font-size:12px}
-}
-
+.row,#keys,#swap,#saveRow{flex:none}
 .row{
   background:var(--surface); border:1px solid var(--line); border-radius:16px;
   padding:14px 16px; display:flex; align-items:baseline; gap:12px;
@@ -68,22 +54,20 @@ main{flex:1;display:flex;flex-direction:column;justify-content:safe center;gap:1
   flex:1;min-width:0;font-size:38px;font-weight:600;line-height:1.15;
   text-align:right;font-variant-numeric:tabular-nums;letter-spacing:-.5px;
 }
-#amt{
-  border:0;background:transparent;color:var(--text);padding:0;
-  font-family:inherit;appearance:none;border-radius:0;
-}
+#amt{border:0;background:transparent;color:var(--text);padding:0;font-family:inherit;appearance:none;border-radius:0}
 #amt:focus{outline:none}
 #amt::placeholder{color:var(--muted);opacity:.45}
 #res{color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #res.err{color:var(--muted);opacity:.5}
-/* Le clavier decimal d'Android n'a pas d'operateurs : on les fournit ici. */
-#keys{display:flex;gap:8px}
+/* Le clavier decimal d'Android n'offre aucun operateur : on les fournit ici. */
+#keys{display:flex;gap:6px}
 #keys button{
-  flex:1;padding:11px 0;font-size:17px;font-family:inherit;color:var(--muted);
+  flex:1;min-width:0;padding:11px 0;font-size:17px;font-family:inherit;color:var(--muted);
   background:var(--surface);border:1px solid var(--line);border-radius:12px;
   cursor:pointer;touch-action:manipulation;
 }
 #keys button:active{background:var(--line)}
+#ac{color:var(--accent);font-weight:600}
 #swap{
   align-self:center;width:44px;height:44px;border-radius:50%;
   background:var(--surface);border:1px solid var(--line);color:var(--text);
@@ -91,16 +75,92 @@ main{flex:1;display:flex;flex-direction:column;justify-content:safe center;gap:1
   display:flex;align-items:center;justify-content:center;padding:0;
 }
 #swap:active{background:var(--line)}
-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;color:var(--muted)}
+#saveRow{display:flex;gap:8px}
+#note{
+  flex:1;min-width:0;padding:10px 13px;font:14px/1.3 inherit;font-family:inherit;
+  border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--text);
+}
+#note:focus{outline:none;border-color:var(--accent)}
+#note::placeholder{color:var(--muted);opacity:.7}
+#save{
+  flex:none;padding:10px 15px;font:14px/1.3 inherit;font-family:inherit;font-weight:600;
+  background:var(--accent);color:#fff;border:1px solid var(--accent);border-radius:12px;
+  cursor:pointer;touch-action:manipulation;min-width:104px;
+}
+#save:active{opacity:.8}
+#save.done{background:var(--ok);border-color:var(--ok)}
+footer{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;color:var(--muted);flex:none}
 #rate{font-variant-numeric:tabular-nums}
-#hint{opacity:.7}
 .sw{display:flex;align-items:center;gap:7px;cursor:pointer;flex:none;user-select:none}
 .sw input{position:absolute;opacity:0;pointer-events:none}
 .track{width:34px;height:20px;border-radius:10px;background:var(--line);position:relative;transition:background .15s;flex:none}
 .track::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .15s}
 .sw input:checked + .track{background:var(--accent)}
 .sw input:checked + .track::after{transform:translateX(14px)}
-.sw input:focus-visible + .track{outline:2px solid var(--accent);outline-offset:2px}
+.ghost{
+  flex:none;padding:6px 11px;font:13px/1.3 inherit;font-family:inherit;color:var(--muted);
+  background:var(--surface);border:1px solid var(--line);border-radius:999px;
+  cursor:pointer;touch-action:manipulation;
+}
+.ghost:active{background:var(--line)}
+#histBtn{margin-left:auto}
+#count{font-variant-numeric:tabular-nums;font-weight:600;color:var(--accent)}
+
+/* ---- Historique : panneau plein écran, hors du chemin rapide ------------- */
+#panel{
+  position:fixed;inset:0;z-index:10;background:var(--bg);display:flex;flex-direction:column;
+  padding:calc(env(safe-area-inset-top) + 12px) calc(env(safe-area-inset-right) + 16px)
+          calc(env(safe-area-inset-bottom) + 12px) calc(env(safe-area-inset-left) + 16px);
+}
+#panelHead{display:flex;align-items:center;gap:10px;flex:none;margin-bottom:10px}
+#panelHead h2{margin:0;font-size:17px;font-weight:600}
+#totals{flex:none;display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.total{
+  background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  padding:9px 13px;font-size:14px;font-variant-numeric:tabular-nums;
+}
+.total b{font-size:16px}
+#list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:8px;min-height:0}
+.item{
+  background:var(--surface);border:1px solid var(--line);border-radius:13px;
+  padding:11px 13px;display:flex;align-items:flex-start;gap:10px;
+}
+.item .main{flex:1;min-width:0}
+.item .conv{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+.item .conv .arrow{color:var(--muted);font-weight:400;margin:0 5px}
+.item .meta{font-size:12.5px;color:var(--muted);margin-top:3px;word-break:break-word}
+.item .note{color:var(--text);opacity:.85}
+.del{
+  flex:none;width:30px;height:30px;border-radius:8px;padding:0;font-size:15px;
+  background:transparent;border:1px solid var(--line);color:var(--muted);cursor:pointer;
+}
+.del:active{background:var(--line)}
+#empty{color:var(--muted);font-size:14px;text-align:center;padding:34px 0}
+#panelFoot{flex:none;margin-top:10px;display:flex;justify-content:flex-end}
+#wipe{color:#dc2626;border-color:var(--line)}
+button:focus-visible,input:focus-visible,.sw input:focus-visible + .track{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){ *{transition:none!important} }
+
+/* Clavier ouvert : la hauteur disponible fond. On réduit par paliers au lieu
+   de laisser les blocs s'écraser les uns sur les autres. */
+@media (max-height:640px){
+  body{padding-top:calc(env(safe-area-inset-top) + 8px);padding-bottom:calc(env(safe-area-inset-bottom) + 8px)}
+  main{gap:7px}
+  .row{padding:10px 14px;border-radius:13px}
+  #amt,#res{font-size:30px}
+  #keys button{padding:9px 0;font-size:16px}
+  #swap{width:38px;height:38px;font-size:17px}
+  #note,#save{padding-top:8px;padding-bottom:8px}
+}
+@media (max-height:470px){
+  main{gap:5px}
+  .row{padding:7px 12px}
+  #amt,#res{font-size:23px}
+  #swap{width:30px;height:30px;font-size:15px}
+  #keys button{padding:7px 0;font-size:15px}
+  header,footer{font-size:12px}
+  header{min-height:26px}
+}
 </style>
 </head>
 <body>
@@ -108,6 +168,7 @@ footer{display:flex;align-items:center;justify-content:space-between;gap:12px;fo
 <header>
   <span id="dot" aria-hidden="true"></span>
   <span id="asof">taux de secours</span>
+  <button id="histBtn" class="ghost" type="button">Historique <span id="count"></span></button>
 </header>
 
 <main>
@@ -124,7 +185,8 @@ footer{display:flex;align-items:center;justify-content:space-between;gap:12px;fo
     <button type="button" data-ins="*" aria-label="multiplié par">×</button>
     <button type="button" data-ins="/" aria-label="divisé par">÷</button>
     <button type="button" id="eq" aria-label="Calculer le total">=</button>
-    <button type="button" id="clr" aria-label="Effacer">⌫</button>
+    <button type="button" id="clr" aria-label="Effacer un caractère">⌫</button>
+    <button type="button" id="ac" aria-label="Tout effacer">C</button>
   </div>
 
   <button id="swap" type="button" aria-label="Inverser le sens de conversion">⇅</button>
@@ -133,16 +195,32 @@ footer{display:flex;align-items:center;justify-content:space-between;gap:12px;fo
     <span class="cur" id="curTo">CAD</span>
     <output id="res" for="amt">0,00</output>
   </div>
+
+  <div id="saveRow">
+    <input id="note" type="text" placeholder="note (facultatif)" aria-label="Note"
+           autocomplete="off" enterkeyhint="done" maxlength="120">
+    <button id="save" type="button">Enregistrer</button>
+  </div>
 </main>
 
 <footer>
   <span id="rate"></span>
-  <label class="sw" title="Applique une marge de 2,5 % pour approcher le taux réellement facturé par une carte bancaire">
+  <label class="sw" title="Ajoute 2,5 % pour approcher le taux réellement facturé par une carte bancaire">
     <input type="checkbox" id="fee">
     <span class="track"></span>
     <span>carte</span>
   </label>
 </footer>
+
+<div id="panel" hidden role="dialog" aria-modal="true" aria-label="Historique des conversions">
+  <div id="panelHead">
+    <h2>Historique</h2>
+    <button id="close" class="ghost" type="button" style="margin-left:auto">Fermer</button>
+  </div>
+  <div id="totals"></div>
+  <div id="list"></div>
+  <div id="panelFoot"><button id="wipe" class="ghost" type="button">Tout effacer</button></div>
+</div>
 
 <script>
 (function(){
@@ -152,22 +230,22 @@ footer{display:flex;align-items:center;justify-content:space-between;gap:12px;fo
 // Écrasé dès le premier chargement en ligne.
 var SEED = { rate: 1.6087, date: "2026-09-16", fetched: 0 };
 var API  = "https://api.frankfurter.app/latest?from=EUR&to=CAD";
-var FEE  = 0.025; // marge carte approximative
+var FEE  = 0.025;      // marge carte approximative
+var HMAX = 200;        // plafond de l'historique, pour ne pas gonfler sans fin
 
-var LS_RATE = "eurocad.rate", LS_DIR = "eurocad.dir", LS_FEE = "eurocad.fee";
+var LS_RATE = "eurocad.rate", LS_DIR = "eurocad.dir",
+    LS_FEE  = "eurocad.fee",  LS_HIST = "eurocad.hist";
 
-var amt   = document.getElementById("amt"),
-    res   = document.getElementById("res"),
-    dot   = document.getElementById("dot"),
-    asof  = document.getElementById("asof"),
-    rateL = document.getElementById("rate"),
-    curF  = document.getElementById("curFrom"),
-    curT  = document.getElementById("curTo"),
-    fee   = document.getElementById("fee");
+var $ = function(id){ return document.getElementById(id); };
+var amt  = $("amt"),  res   = $("res"),  dot  = $("dot"),   asof = $("asof"),
+    rateL= $("rate"), curF  = $("curFrom"), curT = $("curTo"), fee = $("fee"),
+    note = $("note"), save  = $("save"), panel= $("panel"), list = $("list"),
+    totals=$("totals"), count= $("count");
 
 var nf  = new Intl.NumberFormat("fr-CA",{minimumFractionDigits:2,maximumFractionDigits:2});
 var nf4 = new Intl.NumberFormat("fr-CA",{minimumFractionDigits:2,maximumFractionDigits:4});
 var df  = new Intl.DateTimeFormat("fr-CA",{day:"numeric",month:"short"});
+var dfh = new Intl.DateTimeFormat("fr-CA",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
 
 function store(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
 function load(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
@@ -182,7 +260,18 @@ try{
 }catch(e){}
 
 var dir = load(LS_DIR) === "CADEUR" ? "CADEUR" : "EURCAD";
+
+// « = » remplace « 100+50 » par « 150 » dans le champ : sans mémoire, le calcul
+// serait perdu pour l'historique. On retient donc ce qui a été replié, tant que
+// le champ commence toujours par le total produit.
+var folded = null;   // { from:"100+50", to:"150" }
 fee.checked = load(LS_FEE) === "1";
+
+var hist = [];
+try{
+  var rh = load(LS_HIST);
+  if(rh){ var ph = JSON.parse(rh); if(Array.isArray(ph)) hist = ph; }
+}catch(e){}
 
 /* ---- Évaluation arithmétique (sans eval) ---------------------------------
    expr := term (('+'|'-') term)*
@@ -211,7 +300,7 @@ function evaluate(src){
     while(i < s.length && /[0-9.]/.test(s.charAt(i))) i++;
     if(i === start) return null;
     var num = s.slice(start,i);
-    if(num.split(".").length > 2) return null;   // "1.2.3"
+    if(num.split(".").length > 2) return null;
     var n2 = parseFloat(num);
     return isFinite(n2) ? n2 : null;
   }
@@ -269,7 +358,7 @@ function evalLoose(src){
   for(;;){
     var v = tryClose(s);
     if(v !== null) return v;
-    if(!s.length || !/[+\-*\/(.,]$/.test(s)) return null;
+    if(!s.length || !/[+\-*/(.,]$/.test(s)) return null;
     s = s.slice(0,-1);
   }
 }
@@ -282,6 +371,16 @@ function plain(n){
   return s.replace(".", ",");
 }
 
+// Recompose le calcul réellement fait : « 150/2 » redevient « (100+50)/2 ».
+function fullExpr(){
+  var v = amt.value.trim();
+  if(folded && v.indexOf(folded.to) === 0){
+    var rest = v.slice(folded.to.length);
+    return rest ? "(" + folded.from + ")" + rest : folded.from;
+  }
+  return v;
+}
+
 /* ---- Rendu --------------------------------------------------------------- */
 function convert(n){
   var v = dir === "EURCAD" ? n * data.rate : n / data.rate;
@@ -291,6 +390,8 @@ function convert(n){
 }
 
 function render(){
+  if(folded && amt.value.trim().indexOf(folded.to) !== 0) folded = null;
+
   curF.textContent = dir === "EURCAD" ? "EUR" : "CAD";
   curT.textContent = dir === "EURCAD" ? "CAD" : "EUR";
 
@@ -312,49 +413,170 @@ function render(){
            + (fee.checked ? " (carte)" : "");
   // Repère mental : toujours exprimé sur le taux EUR→CAD, plus facile à
   // manipuler de tête (« ÷1,6 ») que le 0,62 de l'autre sens.
-  var round1 = Math.round((dir === "EURCAD" ? shown : 1/shown)*10)/10;
-  // Le repère de calcul mental ne s'affiche que s'il apporte quelque chose :
-  // sur un taux déjà rond il ne ferait que répéter la ligne.
-  var cmp = dir === "EURCAD" ? shown : 1/shown;
+  var cmp    = dir === "EURCAD" ? shown : 1/shown;
+  var round1 = Math.round(cmp*10)/10;
   rateL.textContent = base + (nf4.format(round1) === nf4.format(cmp)
     ? ""
     : "  ·  ≈ " + (dir === "EURCAD" ? "×" : "÷") + nf4.format(round1));
 
-  // Fraîcheur : la BCE ne publie qu'en semaine, d'où le palier large avant l'ambre.
   var age = data.fetched ? Date.now() - data.fetched : Infinity;
-  var cls = age < 864e5 ? "ok" : (age < 3456e5 ? "stale" : "");
-  dot.className = cls;
+  dot.className = age < 864e5 ? "ok" : (age < 3456e5 ? "stale" : "");
 
   var parts = data.date.split("-");
   var d = new Date(+parts[0], +parts[1]-1, +parts[2]);
   asof.textContent = data.fetched
     ? "taux du " + df.format(d)
     : "taux de secours du " + df.format(d);
+
+  count.textContent = hist.length ? String(hist.length) : "";
 }
+
+/* ---- Historique ---------------------------------------------------------- */
+function persist(){
+  store(LS_HIST, JSON.stringify(hist));
+  render();
+  if(!panel.hidden) renderHist();
+}
+
+var doneTimer = null;
+function addEntry(){
+  var v = evalLoose(amt.value);
+  if(amt.value.trim() === "" || v === null) return;   // rien de valide à garder
+
+  var typed = fullExpr();
+  hist.unshift({
+    ts: Date.now(),
+    from: dir === "EURCAD" ? "EUR" : "CAD",
+    to:   dir === "EURCAD" ? "CAD" : "EUR",
+    // Valeurs brutes : le formatage arrondit à l'affichage. Arrondir ici aussi
+    // ferait diverger les totaux d'un centime.
+    amount: v,
+    result: convert(v),
+    // On ne garde le calcul que s'il en était un : « 34,90 » n'a rien à montrer.
+    expr: typed === plain(v) ? "" : typed,
+    fee:  fee.checked,
+    note: note.value.trim()
+  });
+  if(hist.length > HMAX) hist.length = HMAX;
+  persist();
+
+  note.value = "";
+  save.textContent = "✓ Enregistré";
+  save.classList.add("done");
+  if(doneTimer) clearTimeout(doneTimer);
+  doneTimer = setTimeout(function(){
+    save.textContent = "Enregistrer";
+    save.classList.remove("done");
+  }, 1300);
+}
+
+function renderHist(){
+  // Totaux par devise d'arrivée : mélanger les deux sens n'aurait aucun sens.
+  var sums = {};
+  hist.forEach(function(e){ sums[e.to] = (sums[e.to] || 0) + e.result; });
+
+  totals.textContent = "";
+  Object.keys(sums).forEach(function(cur){
+    var el = document.createElement("div");
+    el.className = "total";
+    el.appendChild(document.createTextNode("Total " + cur + " : "));
+    var b = document.createElement("b");
+    b.textContent = nf.format(sums[cur]);
+    el.appendChild(b);
+    totals.appendChild(el);
+  });
+
+  list.textContent = "";
+  if(!hist.length){
+    var none = document.createElement("div");
+    none.id = "empty";
+    none.textContent = "Aucune conversion enregistrée.";
+    list.appendChild(none);
+    return;
+  }
+
+  hist.forEach(function(e, i){
+    var it = document.createElement("div");
+    it.className = "item";
+
+    var main = document.createElement("div");
+    main.className = "main";
+
+    var conv = document.createElement("div");
+    conv.className = "conv";
+    conv.appendChild(document.createTextNode(nf.format(e.amount) + " " + e.from));
+    var ar = document.createElement("span");
+    ar.className = "arrow";
+    ar.textContent = "→";
+    conv.appendChild(ar);
+    conv.appendChild(document.createTextNode(nf.format(e.result) + " " + e.to));
+    main.appendChild(conv);
+
+    // Construit en textContent, jamais en innerHTML : la note est du texte libre.
+    var bits = [];
+    if(e.expr) bits.push(e.expr);
+    if(e.fee)  bits.push("carte");
+    bits.push(dfh.format(new Date(e.ts)));
+
+    var meta = document.createElement("div");
+    meta.className = "meta";
+    if(e.note){
+      var n = document.createElement("span");
+      n.className = "note";
+      n.textContent = e.note;
+      meta.appendChild(n);
+      meta.appendChild(document.createTextNode(" · "));
+    }
+    meta.appendChild(document.createTextNode(bits.join(" · ")));
+    main.appendChild(meta);
+
+    it.appendChild(main);
+
+    var del = document.createElement("button");
+    del.className = "del";
+    del.type = "button";
+    del.textContent = "×";
+    del.setAttribute("aria-label", "Supprimer cette ligne");
+    del.dataset.i = String(i);
+    it.appendChild(del);
+
+    list.appendChild(it);
+  });
+}
+
+function openHist(){ renderHist(); panel.hidden = false; }
+function closeHist(){ panel.hidden = true; amt.focus(); }
 
 /* ---- Interactions -------------------------------------------------------- */
 amt.addEventListener("input", render);
 
-// Rouvrir l'app ou revenir au champ sélectionne le montant précédent : taper
-// le remplace directement, sans passer par le retour arrière.
+// Revenir au champ sélectionne le montant précédent : taper le remplace
+// directement, sans passer par le retour arrière.
 amt.addEventListener("focus", function(){
   try{ amt.select(); }catch(e){}
 });
 
-document.getElementById("keys").addEventListener("pointerdown", function(e){
+$("keys").addEventListener("pointerdown", function(e){
   var b = e.target.closest("button");
   if(!b) return;
   e.preventDefault();                       // ne pas voler le focus au champ
   var s = amt.selectionStart, en = amt.selectionEnd, val = amt.value;
   if(s === null){ s = en = val.length; }
+
   if(b.id === "eq"){
     // Replie « 100+50 » en « 150 » pour enchaîner « /2 ». Sans ça il faudrait
     // prévoir une parenthèse avant de commencer à taper, ce que personne ne fait.
     var total = evalLoose(val);
     if(total !== null){
+      var before = val.trim();
       amt.value = plain(total);
       s = amt.value.length;
+      if(before !== amt.value) folded = { from: before, to: amt.value };
     }
+  }else if(b.id === "ac"){
+    amt.value = "";
+    s = 0;
+    folded = null;
   }else if(b.id === "clr"){
     if(s !== en){ amt.value = val.slice(0,s) + val.slice(en); }
     else if(s > 0){ amt.value = val.slice(0,s-1) + val.slice(s); s--; }
@@ -363,12 +585,13 @@ document.getElementById("keys").addEventListener("pointerdown", function(e){
     amt.value = val.slice(0,s) + ins + val.slice(en);
     s += ins.length;
   }
+
   amt.focus();
   try{ amt.setSelectionRange(s,s); }catch(err){}
   render();
 });
 
-document.getElementById("swap").addEventListener("click", function(){
+$("swap").addEventListener("click", function(){
   dir = dir === "EURCAD" ? "CADEUR" : "EURCAD";
   store(LS_DIR, dir);
   render();
@@ -378,6 +601,30 @@ document.getElementById("swap").addEventListener("click", function(){
 fee.addEventListener("change", function(){
   store(LS_FEE, fee.checked ? "1" : "0");
   render();
+});
+
+save.addEventListener("click", addEntry);
+note.addEventListener("keydown", function(e){ if(e.key === "Enter") addEntry(); });
+
+$("histBtn").addEventListener("click", openHist);
+$("close").addEventListener("click", closeHist);
+
+list.addEventListener("click", function(e){
+  var b = e.target.closest(".del");
+  if(!b) return;
+  hist.splice(Number(b.dataset.i), 1);
+  persist();
+});
+
+$("wipe").addEventListener("click", function(){
+  if(!hist.length) return;
+  if(!confirm("Effacer tout l'historique ?")) return;
+  hist = [];
+  persist();
+});
+
+document.addEventListener("keydown", function(e){
+  if(e.key === "Escape" && !panel.hidden) closeHist();
 });
 
 render();
@@ -403,7 +650,7 @@ document.addEventListener("visibilitychange", function(){
 
 if("serviceWorker" in navigator){
   window.addEventListener("load", function(){
-    navigator.serviceWorker.register("sw.js").catch(function(){});
+    try{ navigator.serviceWorker.register("sw.js").catch(function(){}); }catch(e){}
   });
 }
 })();

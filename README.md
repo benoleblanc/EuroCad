@@ -28,9 +28,25 @@ Une fois installée, l'app n'a plus besoin du réseau.
 |---|---|
 | `⇅` | Inverse le sens (EUR→CAD / CAD→EUR). Le choix est mémorisé. |
 | `+ − × ÷` | Additionner des articles ou partager une addition : `12+34,90`, `86/4`. Ces touches existent parce que le clavier numérique d'Android n'a pas d'opérateurs. |
-| `⌫` | Efface un caractère. |
+| `=` | Replie le calcul en cours : `100+50` puis `=` donne `150`, pour enchaîner `/2`. |
+| `⌫` / `C` | Efface un caractère / vide le champ. |
 | `carte` | Ajoute 2,5 % pour approcher ce que la carte bancaire facture réellement. |
 | Pastille | 🟢 taux du jour · 🟠 quelques jours · ⚪ hors-ligne ou taux de secours |
+| **Enregistrer** | Range la conversion dans l'historique, avec la note facultative et le calcul s'il y en a eu. |
+| **Historique** | Liste des conversions enregistrées, total par devise, suppression ligne à ligne. |
+
+## Historique
+
+Chaque ligne conserve le montant, le résultat, la note, le calcul et l'horodatage.
+Un calcul replié par `=` est reconstitué en entier : taper `100+50`, `=`, `/2`
+enregistre `(100+50)/2`, pas `150/2`.
+
+Les totaux sont groupés par devise d'arrivée — additionner des conversions faites
+dans les deux sens n'aurait aucun sens.
+
+Le stockage est **local au navigateur** (`localStorage`, plafonné à 200 lignes) :
+rien n'est envoyé nulle part, mais rien n'est synchronisé non plus. Vider les
+données du site efface l'historique.
 
 La virgule et le point sont acceptés indifféremment.
 
@@ -52,7 +68,7 @@ Deux limites à connaître :
 ```bash
 npm install          # playwright, pour les tests et les icônes
 npm run serve        # http://localhost:8765
-npm test             # 37 vérifications : conversion, parseur, hors-ligne, PWA
+npm test             # 78 vérifications : conversion, parseur, historique, hors-ligne, PWA
 npm run icons        # régénère icons/*.png
 ```
 
@@ -66,6 +82,7 @@ plus court possible.
 | `sw.js` | Service worker : shell en cache, jamais le taux |
 | `manifest.webmanifest` | Métadonnées d'installation |
 | `test.mjs` | Suite de tests Playwright |
+| `build-artifact.mjs` | Dérive la version « artifact Claude » depuis `index.html` |
 
 Le calcul en ligne utilise un analyseur en descente récursive écrit à la main —
 jamais `eval` ni `new Function`.
