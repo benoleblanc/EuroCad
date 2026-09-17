@@ -48,7 +48,8 @@ body{
 }
 header{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);min-height:32px;flex:none}
 #dot{width:9px;height:9px;border-radius:50%;background:var(--old);flex:none}
-#asof{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#asof{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+      cursor:pointer;-webkit-user-select:none;user-select:none}
 #dot.ok{background:var(--ok)} #dot.stale{background:var(--stale)}
 main{flex:1;display:flex;flex-direction:column;justify-content:safe center;gap:10px;min-height:0}
 .row,#keys,#swap,#saveRow{flex:none}
@@ -265,6 +266,8 @@ var SOURCES = [
 ];
 var FEE  = 0.025;      // marge carte approximative
 var HMAX = 200;        // plafond de l'historique, pour ne pas gonfler sans fin
+var VERSION = "3";     // affichée en touchant l'en-tête, pour lever tout doute
+                       // sur la version réellement servie par le cache
 
 var LS_RATE = "eurocad.rate", LS_DIR = "eurocad.dir",
     LS_FEE  = "eurocad.fee",  LS_HIST = "eurocad.hist";
@@ -470,6 +473,15 @@ function convert(n){
   return fee.checked ? v * (1 + FEE) : v;
 }
 
+var asofPinned = false, pinTimer = null;
+// Message temporaire dans l'en-tête, sans déplacer quoi que ce soit.
+function say(msg, ms){
+  asofPinned = true;
+  asof.textContent = msg;
+  if(pinTimer) clearTimeout(pinTimer);
+  pinTimer = setTimeout(function(){ asofPinned = false; render(); }, ms || 3500);
+}
+
 function render(){
   if(folded && amt.value.trim().indexOf(folded.to) !== 0) folded = null;
 
@@ -503,11 +515,13 @@ function render(){
   var age = data.fetched ? Date.now() - data.fetched : Infinity;
   dot.className = age < 864e5 ? "ok" : (age < 3456e5 ? "stale" : "");
 
-  var parts = data.date.split("-");
-  var d = new Date(+parts[0], +parts[1]-1, +parts[2]);
-  asof.textContent = data.fetched
-    ? "taux du " + df.format(d)
-    : "taux de secours du " + df.format(d);
+  if(!asofPinned){
+    var parts = data.date.split("-");
+    var d = new Date(+parts[0], +parts[1]-1, +parts[2]);
+    asof.textContent = data.fetched
+      ? "taux du " + df.format(d)
+      : "taux de secours du " + df.format(d);
+  }
 
   count.textContent = hist.length ? String(hist.length) : "";
 }
@@ -739,10 +753,15 @@ applyTheme();
 render();
 
 /* ---- Taux frais en arrière-plan : l'UI n'attend jamais le réseau ---------- */
-function refresh(i){
+var lastErr = "";
+function refresh(i, manual){
   // Défensif : un écouteur d'événement passerait l'objet Event en 1er argument.
   if(typeof i !== "number" || !(i >= 0)) i = 0;
-  if(i >= SOURCES.length) return;   // hors-ligne : on garde le taux en cache
+  if(i === 0) lastErr = "";
+  if(i >= SOURCES.length){          // hors-ligne : on garde le taux en cache
+    if(manual) say("v" + VERSION + " · échec : " + (lastErr || "réseau"), 6000);
+    return;
+  }
   var src = SOURCES[i];
   fetch(src.url, { cache: "no-store" })
     .then(function(r){ if(!r.ok) throw 0; return r.json(); })
@@ -756,19 +775,44 @@ function refresh(i){
         fetched: Date.now()
       };
       store(LS_RATE, JSON.stringify(data));
+      asofPinned = false;
       render();
+      if(manual) say("v" + VERSION + " · taux mis à jour", 2500);
     })
-    .catch(function(){ refresh(i + 1); });   // source suivante
+    .catch(function(err){
+      lastErr = (err && err.message) ? String(err.message).slice(0, 60) : "indisponible";
+      refresh(i + 1, manual);                // source suivante
+    });
 }
 refresh();
+
+// Toucher l'en-tête force un essai et affiche la version réellement servie.
+asof.addEventListener("click", function(){
+  say("v" + VERSION + " · mise à jour…", 8000);
+  refresh(0, true);
+});
 window.addEventListener("online", function(){ refresh(); });
 document.addEventListener("visibilitychange", function(){
   if(!document.hidden && Date.now() - (data.fetched||0) > 36e5) refresh();
 });
 
 if("serviceWorker" in navigator){
+  // Sans ça, une nouvelle version n'apparaîtrait qu'au lancement suivant.
+  var hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener("controllerchange", function(){
+    if(!hadController) return;            // première installation : rien à recharger
+    try{
+      if(sessionStorage.getItem("eurocad.reloaded")) return;   // jamais en boucle
+      sessionStorage.setItem("eurocad.reloaded", "1");
+    }catch(e){}
+    location.reload();
+  });
   window.addEventListener("load", function(){
-    try{ navigator.serviceWorker.register("sw.js").catch(function(){}); }catch(e){}
+    try{
+      navigator.serviceWorker.register("sw.js", { updateViaCache: "none" })
+        .then(function(reg){ try{ reg.update(); }catch(e){} })
+        .catch(function(){});
+    }catch(e){}
   });
 }
 })();

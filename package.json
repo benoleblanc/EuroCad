@@ -7,7 +7,9 @@
     "serve": "python3 -m http.server 8765",
     "test": "node test.mjs",
     "build": "node build-artifact.mjs eurocad-artifact.html && node verify-artifact.mjs eurocad-artifact.html",
-    "icons": "node gen-icons.mjs"
+    "icons": "node gen-icons.mjs",
+    "test:sw": "node scripts/run-sw-test.mjs",
+    "test:all": "npm test && npm run test:sw && npm run build"
   },
   "devDependencies": {
     "playwright": "^1.56.0"

@@ -22,6 +22,10 @@ Une fois installée, l'app n'a plus besoin du réseau.
 - **Le champ est sélectionné à l'ouverture.** Tu tapes, ça remplace le montant précédent.
 - **Fonctionne en mode avion**, avec le dernier taux récupéré.
 
+En touchant la ligne du taux, en haut, on force un essai de mise à jour et on
+affiche la version réellement servie — utile pour lever un doute quand le cache
+est en cause.
+
 ## Fonctions
 
 | | |
@@ -73,6 +77,8 @@ Deux limites à connaître :
 npm install          # playwright, pour les tests et les icônes
 npm run serve        # http://localhost:8765
 npm test             # 92 vérifications : conversion, parseur, historique, hors-ligne, PWA
+npm run test:sw      # le cycle de mise à jour du service worker
+npm run test:all     # les trois
 npm run build        # dérive la version artifact et vérifie qu'elle rend
 npm run icons        # régénère icons/*.png
 ```
@@ -84,7 +90,8 @@ plus court possible.
 | Fichier | Rôle |
 |---|---|
 | `index.html` | L'app entière (~13 Ko) |
-| `sw.js` | Service worker : shell en cache, jamais le taux |
+| `sw.js` | Service worker : page en réseau d'abord, ressources en cache |
+| `scripts/sw-update.mjs` | Vérifie qu'un redéploiement atteint un utilisateur déjà installé |
 | `manifest.webmanifest` | Métadonnées d'installation |
 | `test.mjs` | Suite de tests Playwright |
 | `build-artifact.mjs` | Dérive la version « artifact Claude » depuis `index.html` |
