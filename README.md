@@ -31,6 +31,7 @@ Une fois installée, l'app n'a plus besoin du réseau.
 | `=` | Replie le calcul en cours : `100+50` puis `=` donne `150`, pour enchaîner `/2`. |
 | `⌫` / `C` | Efface un caractère / vide le champ. |
 | `carte` | Ajoute 2,5 % pour approcher ce que la carte bancaire facture réellement. |
+| `◐` `☾` `☀` | Thème : automatique (suit le téléphone) → sombre → clair. Le choix est mémorisé. |
 | Pastille | 🟢 taux du jour · 🟠 quelques jours · ⚪ hors-ligne ou taux de secours |
 | **Enregistrer** | Range la conversion dans l'historique, avec la note facultative et le calcul s'il y en a eu. |
 | **Historique** | Liste des conversions enregistrées, total par devise, suppression ligne à ligne. |
@@ -68,7 +69,7 @@ Deux limites à connaître :
 ```bash
 npm install          # playwright, pour les tests et les icônes
 npm run serve        # http://localhost:8765
-npm test             # 78 vérifications : conversion, parseur, historique, hors-ligne, PWA
+npm test             # 91 vérifications : conversion, parseur, historique, hors-ligne, PWA
 npm run build        # dérive la version artifact et vérifie qu'elle rend
 npm run icons        # régénère icons/*.png
 ```

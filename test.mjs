@@ -245,6 +245,52 @@ page.once('dialog', d => d.accept());
 await page.click('#wipe');
 await page.click('#close');
 
+console.log('\n== Interrupteur de theme ==');
+const rootTheme = () => page.evaluate(() => document.documentElement.getAttribute('data-theme'));
+const bodyBg    = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+const metaTc    = () => page.evaluate(() => document.getElementById('tc').getAttribute('content'));
+
+await page.evaluate(() => localStorage.removeItem('eurocad.theme'));
+await page.reload({ waitUntil: 'networkidle' });
+check('automatique au depart', await rootTheme(), null);
+check('glyphe automatique', (await page.textContent('#themeBtn')).trim(), '\u25D0');
+
+await page.click('#themeBtn');
+check('1er appui : sombre', await rootTheme(), 'dark');
+check('fond sombre applique', await bodyBg(), 'rgb(14, 16, 20)');
+check('barre d\'etat suit', await metaTc(), '#0e1014');
+
+await page.click('#themeBtn');
+check('2e appui : clair', await rootTheme(), 'light');
+check('fond clair applique', await bodyBg(), 'rgb(233, 237, 244)');
+check('barre d\'etat suit', await metaTc(), '#e9edf4');
+
+await page.click('#themeBtn');
+check('3e appui : retour automatique', await rootTheme(), null);
+
+// Le choix doit survivre au rechargement.
+await page.click('#themeBtn');
+await page.reload({ waitUntil: 'networkidle' });
+check('choix memorise', await rootTheme(), 'dark');
+check('glyphe memorise', (await page.textContent('#themeBtn')).trim(), '\u263E');
+
+// Un hote qui impose son propre theme ne doit pas gagner sur un choix explicite.
+await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
+await page.waitForTimeout(80);
+check('choix explicite reimpose', await rootTheme(), 'dark');
+
+// En mode automatique, en revanche, on laisse faire.
+await page.click('#themeBtn'); // light
+await page.click('#themeBtn'); // auto
+await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
+await page.waitForTimeout(80);
+check('mode auto n\'impose rien', await rootTheme(), 'light');
+await page.evaluate(() => {
+  document.documentElement.removeAttribute('data-theme');
+  localStorage.setItem('eurocad.theme', 'dark');
+});
+await page.reload({ waitUntil: 'networkidle' });
+
 console.log('\n== PWA ==');
 const man = await page.evaluate(async () => {
   const r = await fetch('manifest.webmanifest');
