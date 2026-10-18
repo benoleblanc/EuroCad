@@ -320,7 +320,9 @@ await page.click('#themeBtn');
 check('3e appui : auto',    await rootTheme(), null);
 
 console.log('\n== Identite de l\'app ==');
-check('titre de la page',        await page.title(), 'BonVoyage$');
+// Le titre de l'onglet est descriptif pour les resultats de recherche ; le nom
+// court de l'ecran d'accueil vient du manifeste, pas de la.
+check('titre commence par le nom', (await page.title()).startsWith('BonVoyage$'), true);
 check('nom sur l\'ecran d\'accueil', (await page.evaluate(async () =>
   (await (await fetch('manifest.webmanifest')).json()).short_name)), 'BonVoyage$');
 // Les cles de stockage gardent le prefixe d'origine : les renommer effacerait
@@ -349,6 +351,49 @@ check('apercu de lien : titre',    (await meta('meta[property="og:title"]')).inc
 check('apercu de lien : image',    (await meta('meta[property="og:image"]')).endsWith('icons/icon-512.png'), true);
 check('apercu de lien : adresse',  await meta('meta[property="og:url"]'), 'https://benoleblanc.github.io/EuroCad/');
 check('message sans JavaScript',   (await page.locator('noscript').innerHTML()).includes('160 devises'), true);
+
+console.log('\n== Pret pour l\'indexation, mais desactivee ==');
+check('indexation refusee',   await meta('meta[name="robots"]'), 'noindex');
+check('titre descriptif',     (await page.title()).includes('convertisseur de devises'), true);
+check('adresse canonique',    await page.evaluate(() =>
+  document.querySelector('link[rel="canonical"]').getAttribute('href')), 'https://benoleblanc.github.io/EuroCad/');
+const ld = JSON.parse(await page.locator('script[type="application/ld+json"]').textContent());
+check('donnees structurees : type', ld['@type'], 'WebApplication');
+check('donnees structurees : nom',  ld.name, 'BonVoyage$');
+check('donnees structurees : categorie', ld.applicationCategory, 'TravelApplication');
+check('fonctions listees',   ld.featureList.length >= 5, true);
+
+console.log('\n== Partager l\'application ==');
+await page.click('#histBtn');
+check('bouton present', await page.isVisible('#share'), true);
+// Le selecteur natif n'existe pas dans le navigateur de test : on verifie le
+// chemin de repli, la copie du lien.
+await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
+await page.evaluate(() => { delete navigator.share; });
+await page.click('#share');
+await page.waitForFunction(() => document.getElementById('share').textContent.includes('copié'),
+  null, { timeout: 3000 });
+check('retour visuel', (await page.textContent('#share')).includes('Lien copié'), true);
+check('lien copie', await page.evaluate(() => navigator.clipboard.readText()),
+  'http://localhost:8765/');
+// Et le chemin natif, quand le selecteur existe.
+await page.evaluate(() => {
+  window.__partage = null;
+  navigator.share = d => { window.__partage = d; return Promise.resolve(); };
+});
+await page.click('#share');
+const partage = await page.evaluate(() => window.__partage);
+check('selecteur natif : titre', partage.title, 'BonVoyage$');
+check('selecteur natif : adresse', partage.url, 'http://localhost:8765/');
+check('selecteur natif : texte', partage.text.includes('160 devises'), true);
+// Annuler le partage ne doit rien casser.
+await page.evaluate(() => {
+  navigator.share = () => Promise.reject(new DOMException('cancel', 'AbortError'));
+});
+await page.click('#share');
+await page.waitForTimeout(150);
+check('annulation sans erreur', await page.isVisible('#share'), true);
+await page.click('#close');
 
 console.log('\n== PWA ==');
 const man = await page.evaluate(async () => { const r = await fetch('manifest.webmanifest'); return { ok:r.ok, j: await r.json() }; });

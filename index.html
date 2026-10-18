@@ -3,7 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<title>BonVoyage$</title>
+<title>BonVoyage$ — convertisseur de devises et budget de voyage</title>
+<!-- Indexation desactivee. Pour rendre l'app trouvable dans les moteurs,
+     supprimer cette SEULE ligne : titre, donnees structurees, Open Graph et
+     canonique sont deja en place. Un robots.txt serait sans effet, les robots
+     ne le lisant qu'a la racine du domaine, pas dans /EuroCad/. -->
+<meta name="robots" content="noindex">
 <meta name="description" content="Convertisseur entre environ 160 devises et suivi de budget de voyage : conversion instantanee, calcul en ligne, historique par jour, semaine ou mois, export PDF. Fonctionne hors-ligne, installable sur Android.">
 <meta name="application-name" content="BonVoyage$">
 <link rel="canonical" href="https://benoleblanc.github.io/EuroCad/">
@@ -17,6 +22,37 @@
 <meta property="og:image" content="https://benoleblanc.github.io/EuroCad/icons/icon-512.png">
 <meta property="og:locale" content="fr_CA">
 <meta name="twitter:card" content="summary">
+<!-- Donnees structurees : decrivent l'app aux moteurs sans qu'ils aient a
+     executer le JavaScript. Pretes pour le jour ou l'indexation sera activee. -->
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "WebApplication",
+ "name": "BonVoyage$",
+ "alternateName": "BonVoyage",
+ "url": "https://benoleblanc.github.io/EuroCad/",
+ "description": "Convertisseur entre environ 160 devises et suivi de budget de voyage : conversion instantanee, calcul en ligne, historique par jour, semaine ou mois, export PDF. Fonctionne hors-ligne, installable sur Android.",
+ "applicationCategory": "TravelApplication",
+ "operatingSystem": "Android, iOS, navigateur web",
+ "browserRequirements": "JavaScript",
+ "inLanguage": "fr-CA",
+ "isAccessibleForFree": true,
+ "offers": {
+  "@type": "Offer",
+  "price": "0",
+  "priceCurrency": "CAD"
+ },
+ "featureList": [
+  "Conversion entre environ 160 devises",
+  "Calcul dans le champ de saisie",
+  "Fonctionnement hors-ligne",
+  "Historique des depenses par jour, semaine, mois ou voyage",
+  "Budget de voyage avec reste a depenser",
+  "Export PDF de l'historique"
+ ],
+ "screenshot": "https://benoleblanc.github.io/EuroCad/icons/icon-512.png"
+}
+</script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta id="tc" name="theme-color" content="#e9edf4">
 <meta name="mobile-web-app-capable" content="yes">
@@ -218,7 +254,12 @@ footer{display:flex;align-items:center;justify-content:space-between;gap:12px;fo
 }
 .del:active{background:var(--line)}
 #empty{color:var(--muted);font-size:14px;text-align:center;padding:34px 0}
-#pfoot{flex:none;margin-top:10px;display:flex;gap:8px;justify-content:space-between}
+/* Trois boutons sur une ligne : ca tient jusqu'a 360 px de large. En deca,
+   flex-wrap evite tout debordement plutot que de rogner les libelles. */
+#pfoot{flex:none;margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;
+       row-gap:7px;justify-content:space-between}
+#pfoot .ghost{padding:6px 7px;white-space:nowrap}
+#share.done{color:var(--ok);border-color:var(--ok)}
 #wipe{color:var(--warn)}
 button:focus-visible,input:focus-visible,.sw input:focus-visible + .track{outline:2px solid var(--accent);outline-offset:2px}
 @media (prefers-reduced-motion: reduce){ *{transition:none!important} }
@@ -357,6 +398,7 @@ body.micro header{min-height:22px}
   <div id="list"></div>
   <div id="pfoot">
     <button id="wipe" class="ghost" type="button">Tout effacer</button>
+    <button id="share" class="ghost" type="button">Partager l'app</button>
     <button id="print" class="ghost" type="button">Imprimer / PDF</button>
   </div>
 </div>
@@ -376,7 +418,7 @@ body.micro header{min-height:22px}
 "use strict";
 
 /* ---- Constantes et stockage ---------------------------------------------- */
-var VERSION = "7";
+var VERSION = "8";
 var FEE  = 0.025;      // marge carte approximative
 var HMAX = 500;        // plafond de l'historique
 var RMAX = 6;          // devises récentes épinglées en haut du sélecteur
@@ -1205,6 +1247,39 @@ $("budget").addEventListener("click", function(e){
   budget = (ans.trim() === "" || n === null || n < 0) ? 0 : n;
   store(LS.budget, String(budget));
   renderHist();
+});
+
+// Partage de l'application. navigator.share ouvre le sélecteur natif d'Android ;
+// à défaut, on copie le lien dans le presse-papiers. Annuler le partage rejette
+// la promesse avec AbortError : ce n'est pas une erreur, on l'ignore.
+var shareTimer = null;
+function flashShare(msg){
+  var b = $("share");
+  b.textContent = msg;
+  b.classList.add("done");
+  if(shareTimer) clearTimeout(shareTimer);
+  shareTimer = setTimeout(function(){
+    b.textContent = "Partager l'app";
+    b.classList.remove("done");
+  }, 2200);
+}
+
+$("share").addEventListener("click", function(){
+  var url  = location.origin + location.pathname;
+  var text = "BonVoyage\u0024 — convertisseur entre environ 160 devises et suivi "
+           + "de budget de voyage. Fonctionne hors-ligne, installable sur Android.";
+  if(navigator.share){
+    navigator.share({ title: "BonVoyage\u0024", text: text, url: url })
+      .catch(function(){});       // annulation par l'utilisateur : rien à signaler
+    return;
+  }
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url)
+      .then(function(){ flashShare("\u2713 Lien copié"); })
+      .catch(function(){ flashShare(url); });
+    return;
+  }
+  flashShare(url);                // dernier recours : on affiche l'adresse
 });
 
 $("print").addEventListener("click", function(){
