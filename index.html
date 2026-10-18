@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<title>EuroCad</title>
-<meta name="description" content="Convertisseur multi-devises et suivi de budget de voyage, hors-ligne.">
+<title>BonVoyage$</title>
+<meta name="description" content="BonVoyage$ — convertisseur multi-devises et suivi de budget de voyage, hors-ligne.">
 <link rel="manifest" href="manifest.webmanifest">
 <meta id="tc" name="theme-color" content="#e9edf4">
 <meta name="mobile-web-app-capable" content="yes">
@@ -351,7 +351,7 @@ body.micro header{min-height:22px}
 "use strict";
 
 /* ---- Constantes et stockage ---------------------------------------------- */
-var VERSION = "5";
+var VERSION = "6";
 var FEE  = 0.025;      // marge carte approximative
 var HMAX = 500;        // plafond de l'historique
 var RMAX = 6;          // devises récentes épinglées en haut du sélecteur
@@ -377,6 +377,9 @@ var SOURCES = [
     pick:function(j){ return j && j.rates ? { base:"EUR", rates:j.rates, date:j.date } : null; } }
 ];
 
+// Préfixe volontairement conservé après le changement de nom : le renommer
+// ferait perdre l'historique, le budget et les réglages déjà enregistrés sur
+// les appareils. Il n'est visible de personne.
 var LS = {
   rates:"eurocad.rates", from:"eurocad.from", to:"eurocad.to", home:"eurocad.home",
   recent:"eurocad.recent", fee:"eurocad.fee", hist:"eurocad.hist",

@@ -1,9 +1,16 @@
-# EuroCad
+# BonVoyage$
 
-Convertisseur **multi-devises** et suivi de budget de voyage, conçu pour donner le prix
-en 2 secondes, debout dans un magasin, sans réseau.
+Convertisseur **multi-devises** et suivi de budget de voyage, conçu pour donner
+le prix en 2 secondes, debout dans un magasin, sans réseau.
 
 👉 **https://benoleblanc.github.io/EuroCad/**
+
+> Le dépôt s'appelle toujours `EuroCad`, nom d'origine du projet quand il ne
+> convertissait qu'entre euro et dollar canadien. L'app a été renommée
+> `BonVoyage$` une fois les ~160 devises ajoutées ; le dépôt, lui, a gardé son
+> nom pour ne pas déplacer l'adresse du site ni casser les installations
+> existantes. Les clés de stockage local restent `eurocad.*` pour la même
+> raison : les renommer effacerait les historiques déjà enregistrés.
 
 ## Installation sur Android
 

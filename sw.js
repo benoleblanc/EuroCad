@@ -1,4 +1,4 @@
-// EuroCad service worker.
+// BonVoyage$ service worker.
 //
 // La v1 était en cache-first sur index.html : une fois installée, l'app ne
 // consultait plus jamais le réseau pour sa propre page et restait figée sur la
@@ -7,7 +7,7 @@
 // La page passe donc en réseau d'abord, avec repli sur le cache — et un délai
 // court pour ne pas sacrifier le démarrage quand la connexion traîne. Les
 // ressources fixes (icônes, manifeste) restent en cache d'abord.
-var CACHE = "eurocad-v4";
+var CACHE = "eurocad-v5";
 var DOC_TIMEOUT = 1200;   // au-delà, on sert le cache et on met à jour derrière
 
 var SHELL = [

@@ -319,6 +319,15 @@ check('2e appui : clair',   await rootTheme(), 'light');
 await page.click('#themeBtn');
 check('3e appui : auto',    await rootTheme(), null);
 
+console.log('\n== Identite de l\'app ==');
+check('titre de la page',        await page.title(), 'BonVoyage$');
+check('nom sur l\'ecran d\'accueil', (await page.evaluate(async () =>
+  (await (await fetch('manifest.webmanifest')).json()).short_name)), 'BonVoyage$');
+// Les cles de stockage gardent le prefixe d'origine : les renommer effacerait
+// les historiques deja enregistres sur les appareils.
+check('cles de stockage inchangees', await page.evaluate(() =>
+  Object.keys(localStorage).every(k => k.indexOf('eurocad.') === 0)), true);
+
 console.log('\n== PWA ==');
 const man = await page.evaluate(async () => { const r = await fetch('manifest.webmanifest'); return { ok:r.ok, j: await r.json() }; });
 check('manifest servi',           man.ok, true);

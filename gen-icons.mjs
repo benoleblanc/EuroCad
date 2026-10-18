@@ -10,10 +10,14 @@ function html(size, scale, radius){
   .w{width:${size}px;height:${size}px;overflow:hidden;border-radius:${radius}px;
      background:linear-gradient(140deg,#2563eb 0%,#1d4ed8 45%,#0ea5e9 100%);
      display:flex;align-items:center;justify-content:center}
+  /* L'avion et le dollar n'ont pas la meme ligne de base dans la police : on
+     remonte l'avion et on l'ecarte legerement pour equilibrer la composition. */
+  .p{font-style:normal;display:inline-block;transform:translateY(-0.08em);
+     margin-right:${f*0.06}px}
   .g{font-family:"DejaVu Sans",system-ui,sans-serif;font-weight:700;color:#fff;
-     font-size:${f}px;line-height:1;letter-spacing:${-f*0.04}px;
+     font-size:${f}px;line-height:1;letter-spacing:${-f*0.02}px;
      text-shadow:0 ${size*0.012}px ${size*0.03}px rgba(0,0,0,.28)}
-  </style></head><body><div class="w"><span class="g">€$</span></div></body></html>`;
+  </style></head><body><div class="w"><span class="g"><i class="p">✈</i>$</span></div></body></html>`;
 }
 
 const targets = [
