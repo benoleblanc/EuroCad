@@ -328,6 +328,28 @@ check('nom sur l\'ecran d\'accueil', (await page.evaluate(async () =>
 check('cles de stockage inchangees', await page.evaluate(() =>
   Object.keys(localStorage).every(k => k.indexOf('eurocad.') === 0)), true);
 
+// Ce que lit un outil qui n'execute pas le JavaScript : titre de page, nombre
+// de devises, et apercu de lien. Sans ca, la page passe pour une calculatrice
+// EUR/CAD, puisque ce sont les seuls codes presents dans le HTML brut.
+const h1 = await page.locator('h1.sr').textContent();
+check('titre de page present',   h1.includes('BonVoyage$'), true);
+check('titre mentionne 160 devises', h1.includes('160 devises'), true);
+// isVisible() de Playwright considere un element de 1x1 px comme visible : on
+// verifie donc qu'il n'occupe aucune place et ne decale rien a l'ecran.
+const boxH1 = await page.locator('h1.sr').boundingBox();
+check('titre sans emprise visuelle', boxH1.width <= 1 && boxH1.height <= 1, true);
+check('mise en page intacte', await page.evaluate(() =>
+  document.getElementById('amt').getBoundingClientRect().width > 150), true);
+const meta = n => page.evaluate(s => {
+  const e = document.querySelector(s);
+  return e ? e.getAttribute('content') : null;
+}, n);
+check('description mentionne 160', (await meta('meta[name="description"]')).includes('160 devises'), true);
+check('apercu de lien : titre',    (await meta('meta[property="og:title"]')).includes('BonVoyage$'), true);
+check('apercu de lien : image',    (await meta('meta[property="og:image"]')).endsWith('icons/icon-512.png'), true);
+check('apercu de lien : adresse',  await meta('meta[property="og:url"]'), 'https://benoleblanc.github.io/EuroCad/');
+check('message sans JavaScript',   (await page.locator('noscript').innerHTML()).includes('160 devises'), true);
+
 console.log('\n== PWA ==');
 const man = await page.evaluate(async () => { const r = await fetch('manifest.webmanifest'); return { ok:r.ok, j: await r.json() }; });
 check('manifest servi',           man.ok, true);

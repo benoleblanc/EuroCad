@@ -4,7 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>BonVoyage$</title>
-<meta name="description" content="BonVoyage$ — convertisseur multi-devises et suivi de budget de voyage, hors-ligne.">
+<meta name="description" content="Convertisseur entre environ 160 devises et suivi de budget de voyage : conversion instantanee, calcul en ligne, historique par jour, semaine ou mois, export PDF. Fonctionne hors-ligne, installable sur Android.">
+<meta name="application-name" content="BonVoyage$">
+<link rel="canonical" href="https://benoleblanc.github.io/EuroCad/">
+<!-- Open Graph : sans ces balises, partager le lien n'affiche ni titre,
+     ni image, ni description dans Messenger, WhatsApp ou un courriel. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="BonVoyage$">
+<meta property="og:title" content="BonVoyage$ — convertisseur de devises et budget de voyage">
+<meta property="og:description" content="Convertisseur entre environ 160 devises et suivi de budget de voyage : conversion instantanee, calcul en ligne, historique par jour, semaine ou mois, export PDF. Fonctionne hors-ligne, installable sur Android.">
+<meta property="og:url" content="https://benoleblanc.github.io/EuroCad/">
+<meta property="og:image" content="https://benoleblanc.github.io/EuroCad/icons/icon-512.png">
+<meta property="og:locale" content="fr_CA">
+<meta name="twitter:card" content="summary">
 <link rel="manifest" href="manifest.webmanifest">
 <meta id="tc" name="theme-color" content="#e9edf4">
 <meta name="mobile-web-app-capable" content="yes">
@@ -33,6 +45,11 @@
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
+/* Hors écran mais lu par les lecteurs d'écran et les analyseurs de page. */
+.sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
+    clip-path:inset(50%);white-space:nowrap;border:0}
+#nojs{margin:0 0 10px;padding:12px 14px;border:1px solid var(--line);
+      border-radius:13px;background:var(--surface);font-size:14px;line-height:1.5}
 html,body{margin:0;padding:0;overflow:hidden}
 body{
   background:var(--bg); color:var(--text);
@@ -263,6 +280,14 @@ body.micro header{min-height:22px}
 </head>
 <body>
 
+<h1 class="sr">BonVoyage$ — convertisseur entre environ 160 devises et suivi de budget de voyage</h1>
+
+<noscript>
+  <p id="nojs"><strong>BonVoyage$</strong> convertit entre environ 160 devises et
+  suit le budget d'un voyage : historique par jour, semaine ou mois, totaux par
+  devise et export PDF. L'application a besoin de JavaScript pour fonctionner.</p>
+</noscript>
+
 <header>
   <span id="dot" aria-hidden="true"></span>
   <span id="asof">taux de secours</span>
@@ -351,7 +376,7 @@ body.micro header{min-height:22px}
 "use strict";
 
 /* ---- Constantes et stockage ---------------------------------------------- */
-var VERSION = "6";
+var VERSION = "7";
 var FEE  = 0.025;      // marge carte approximative
 var HMAX = 500;        // plafond de l'historique
 var RMAX = 6;          // devises récentes épinglées en haut du sélecteur
