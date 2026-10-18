@@ -170,6 +170,37 @@ page.once('dialog', d => d.accept(''));
 await page.click('#setBudget');
 check('budget retire', (await page.textContent('#budget')).includes('Aucun budget'), true);
 
+console.log('\n== Marge carte selon le sens ==');
+// Partir de la devise de reference : on recoit MOINS a l'etranger.
+await reset();
+await page.click('.sw');
+await pickCur('to','CHF');
+await pickCur('from','CAD');          // sinon on resterait sur EUR->CHF
+check('depart en devise de reference', await page.textContent('#curFrom'), 'CAD');
+check('CAD->CHF : marge en moins', await type('100'), fr(100 / 1.6 * 0.9 / 1.025));
+await pickCur('from','CHF'); await pickCur('to','CAD');
+check('CHF->CAD : marge en plus', await type('100'), fr(100 / 0.9 * 1.6 * 1.025));
+await pickCur('from','EUR'); await pickCur('to','CHF');
+check('EUR->CHF : marge en plus', await type('100'), fr(100 * 0.9 * 1.025));
+await page.click('.sw');
+
+console.log('\n== Detail par devise etrangere, des deux cotes ==');
+// Le scenario de Ben : des achats en EUR, et des conversions partant du CAD.
+await reset({ 'eurocad.hist': JSON.stringify([
+  { ts: Date.parse('2026-10-18T07:45:00'), from:'CAD', to:'CHF', amount:35,  result:20.91,  home:'CAD', homeAmount:35,  expr:'', fee:true,  note:'dîner' },
+  { ts: Date.parse('2026-10-18T07:38:00'), from:'CAD', to:'GBP', amount:258, result:140.36, home:'CAD', homeAmount:258, expr:'', fee:true,  note:'bateau' },
+  { ts: Date.parse('2026-10-18T06:39:00'), from:'EUR', to:'CAD', amount:56,  result:91.26,  home:'CAD', homeAmount:91.26, expr:'', fee:true,  note:'café' },
+])});
+await page.click('#histBtn');
+const t = (await page.textContent('#totals')).replace(/\s+/g,' ');
+check('devise de depart etrangere', t.includes('dont ' + fr(56) + ' EUR'), true);
+check('devise d\'arrivee etrangere (CHF)', t.includes('dont ' + fr(20.91) + ' CHF'), true);
+check('devise d\'arrivee etrangere (GBP)', t.includes('dont ' + fr(140.36) + ' GBP'), true);
+check('trois devises listees', await page.locator('.total').count(), 4);
+
+// Le total ne doit PAS gonfler les montants deja en devise de reference.
+check('total sans marge indue', t.includes('Total ' + fr(35 + 258 + 91.26) + ' CAD'), true);
+check('sous-total du jour', (await page.locator('.grp').first().textContent()).includes(fr(384.26) + ' CAD'), true);
 console.log('\n== Vues jour / semaine / mois / voyage ==');
 await page.click('#close');
 await reset({ 'eurocad.hist': JSON.stringify([

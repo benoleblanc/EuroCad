@@ -35,7 +35,7 @@ est en cause.
 | `+ − × ÷` | Additionner des articles ou partager une addition : `12+34,90`, `86/4`. Ces touches existent parce que le clavier numérique d'Android n'a pas d'opérateurs. |
 | `=` | Replie le calcul en cours : `100+50` puis `=` donne `150`, pour enchaîner `/2`. |
 | `⌫` / `C` | Efface un caractère / vide le champ. |
-| `carte` | Ajoute 2,5 % pour approcher ce que la carte bancaire facture réellement. |
+| `carte` | Approche ce que la carte bancaire facture réellement : 2,5 % de marge sur le change. En partant de sa propre devise on reçoit moins à l'étranger ; en y revenant, la dépense coûte plus cher. |
 | `◐` `☾` `☀` | Thème : automatique (suit le téléphone) → sombre → clair. Le choix est mémorisé. |
 | Pastille | 🟢 taux du jour · 🟠 quelques jours · ⚪ hors-ligne ou taux de secours |
 | **Enregistrer** | Range la conversion dans l'historique, avec la note facultative et le calcul s'il y en a eu. |
@@ -95,7 +95,7 @@ Deux limites à connaître :
 ```bash
 npm install          # playwright, pour les tests et les icônes
 npm run serve        # http://localhost:8765
-npm test             # 94 vérifications : conversion, parseur, historique, hors-ligne, PWA
+npm test             # 104 vérifications : conversion, parseur, historique, hors-ligne, PWA
 npm run test:sw      # le cycle de mise à jour du service worker
 npm run test:all     # les trois
 npm run build        # dérive la version artifact et vérifie qu'elle rend

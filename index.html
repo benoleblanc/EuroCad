@@ -351,7 +351,7 @@ body.micro header{min-height:22px}
 "use strict";
 
 /* ---- Constantes et stockage ---------------------------------------------- */
-var VERSION = "4";
+var VERSION = "5";
 var FEE  = 0.025;      // marge carte approximative
 var HMAX = 500;        // plafond de l'historique
 var RMAX = 6;          // devises récentes épinglées en haut du sélecteur
@@ -485,7 +485,11 @@ function conv(a, f, t, withFee){
   var rf = rateOf(f), rt = rateOf(t);
   if(rf === null || rt === null || !isFinite(a)) return null;
   var v = a / rf * rt;
-  return withFee ? v * (1 + FEE) : v;
+  if(!withFee || f === t) return v;   // même devise : aucune conversion, aucune marge
+  // La carte prélève sa marge sur le change lui-même. En partant de sa propre
+  // devise on reçoit donc MOINS à l'étranger ; en y revenant, la dépense coûte
+  // plus cher. Multiplier dans les deux sens gonflait les montants en CAD.
+  return f === home ? v / (1 + FEE) : v * (1 + FEE);
 }
 
 /* ---- Évaluation arithmétique (sans eval) ---------------------------------
@@ -813,9 +817,12 @@ function groupLabel(ts){
 // portent leur propre conversion : un café payé en juin ne doit pas être
 // recalculé au taux d'octobre.
 function homeAmount(e){
-  if(e.home === home && typeof e.homeAmount === "number") return e.homeAmount;
-  if(e.to === home)   return e.result;
+  // Partir de la devise de référence : le montant dépensé est celui saisi, point.
+  // Prioritaire sur la valeur stockée, ce qui rattrape les lignes enregistrées
+  // avant la correction de la marge, sans migration.
   if(e.from === home) return e.amount;
+  if(e.to === home && typeof e.result === "number") return e.result;
+  if(e.home === home && typeof e.homeAmount === "number") return e.homeAmount;
   var c = conv(e.amount, e.from, home, !!e.fee);   // repli : taux du jour
   return c === null ? 0 : c;
 }
@@ -886,9 +893,14 @@ function renderBudget(){
 }
 
 function renderTotals(){
-  // Total dans la devise de référence, puis détail par devise dépensée.
+  // Total dans la devise de référence, puis détail par devise étrangère. Celle-ci
+  // peut être d'un côté comme de l'autre : convertir 35 CAD en CHF compte comme
+  // une dépense en francs, même si le CAD est la devise de départ.
   var byCur = {};
-  hist.forEach(function(e){ byCur[e.from] = (byCur[e.from] || 0) + e.amount; });
+  hist.forEach(function(e){
+    if(e.from !== home)    byCur[e.from] = (byCur[e.from] || 0) + e.amount;
+    else if(e.to !== home) byCur[e.to]   = (byCur[e.to]   || 0) + e.result;
+  });
 
   totals.textContent = "";
   var mk = function(label, value, isHome){
@@ -903,7 +915,7 @@ function renderTotals(){
   if(!hist.length) return;
   mk("Total", money(tripTotal(), home), true);
   Object.keys(byCur).sort().forEach(function(c){
-    if(c !== home) mk("dont", money(byCur[c], c), false);
+    mk("dont", money(byCur[c], c), false);
   });
 }
 
