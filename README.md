@@ -42,7 +42,7 @@ est en cause.
 | `+ − × ÷` | Additionner des articles ou partager une addition : `12+34,90`, `86/4`. Ces touches existent parce que le clavier numérique d'Android n'a pas d'opérateurs. |
 | `=` | Replie le calcul en cours : `100+50` puis `=` donne `150`, pour enchaîner `/2`. |
 | `⌫` / `C` | Efface un caractère / vide le champ. |
-| **Partager l'app** | Ouvre le sélecteur de partage d'Android ; à défaut, copie le lien. |
+| `↗` | Partage l'application : sélecteur natif d'Android, ou copie du lien à défaut. |
 | `carte` | Approche ce que la carte bancaire facture réellement : 2,5 % de marge sur le change. En partant de sa propre devise on reçoit moins à l'étranger ; en y revenant, la dépense coûte plus cher. |
 | `◐` `☾` `☀` | Thème : automatique (suit le téléphone) → sombre → clair. Le choix est mémorisé. |
 | Pastille | 🟢 taux du jour · 🟠 quelques jours · ⚪ hors-ligne ou taux de secours |

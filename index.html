@@ -173,7 +173,9 @@ footer{display:flex;align-items:center;justify-content:space-between;gap:12px;fo
   cursor:pointer;touch-action:manipulation;
 }
 .ghost:active{background:var(--line)}
-#themeBtn{margin-left:auto;padding:6px 10px;font-size:14px;line-height:1.3}
+#share{margin-left:auto}
+#share,#themeBtn{padding:6px 10px;font-size:14px;line-height:1.3}
+#share.done{color:var(--ok);border-color:var(--ok)}
 #count{font-variant-numeric:tabular-nums;font-weight:600;color:var(--accent)}
 
 /* ---- Panneaux plein écran, hors du chemin rapide ------------------------- */
@@ -254,12 +256,8 @@ footer{display:flex;align-items:center;justify-content:space-between;gap:12px;fo
 }
 .del:active{background:var(--line)}
 #empty{color:var(--muted);font-size:14px;text-align:center;padding:34px 0}
-/* Trois boutons sur une ligne : ca tient jusqu'a 360 px de large. En deca,
-   flex-wrap evite tout debordement plutot que de rogner les libelles. */
-#pfoot{flex:none;margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;
-       row-gap:7px;justify-content:space-between}
-#pfoot .ghost{padding:6px 7px;white-space:nowrap}
-#share.done{color:var(--ok);border-color:var(--ok)}
+#pfoot{flex:none;margin-top:10px;display:flex;gap:7px;justify-content:space-between}
+#pfoot .ghost{padding:6px 9px;white-space:nowrap}
 #wipe{color:var(--warn)}
 button:focus-visible,input:focus-visible,.sw input:focus-visible + .track{outline:2px solid var(--accent);outline-offset:2px}
 @media (prefers-reduced-motion: reduce){ *{transition:none!important} }
@@ -332,6 +330,8 @@ body.micro header{min-height:22px}
 <header>
   <span id="dot" aria-hidden="true"></span>
   <span id="asof">taux de secours</span>
+  <button id="share" class="ghost" type="button"
+          aria-label="Partager l'application" title="Partager l'application">↗</button>
   <button id="themeBtn" class="ghost" type="button">◐</button>
   <button id="histBtn" class="ghost" type="button">Historique <span id="count"></span></button>
 </header>
@@ -398,7 +398,6 @@ body.micro header{min-height:22px}
   <div id="list"></div>
   <div id="pfoot">
     <button id="wipe" class="ghost" type="button">Tout effacer</button>
-    <button id="share" class="ghost" type="button">Partager l'app</button>
     <button id="print" class="ghost" type="button">Imprimer / PDF</button>
   </div>
 </div>
@@ -418,7 +417,7 @@ body.micro header{min-height:22px}
 "use strict";
 
 /* ---- Constantes et stockage ---------------------------------------------- */
-var VERSION = "8";
+var VERSION = "9";
 var FEE  = 0.025;      // marge carte approximative
 var HMAX = 500;        // plafond de l'historique
 var RMAX = 6;          // devises récentes épinglées en haut du sélecteur
@@ -1252,17 +1251,8 @@ $("budget").addEventListener("click", function(e){
 // Partage de l'application. navigator.share ouvre le sélecteur natif d'Android ;
 // à défaut, on copie le lien dans le presse-papiers. Annuler le partage rejette
 // la promesse avec AbortError : ce n'est pas une erreur, on l'ignore.
-var shareTimer = null;
-function flashShare(msg){
-  var b = $("share");
-  b.textContent = msg;
-  b.classList.add("done");
-  if(shareTimer) clearTimeout(shareTimer);
-  shareTimer = setTimeout(function(){
-    b.textContent = "Partager l'app";
-    b.classList.remove("done");
-  }, 2200);
-}
+// Le bouton étant réduit à une icône, le retour passe par la ligne d'en-tête.
+function flashShare(msg){ say(msg, 2500); }
 
 $("share").addEventListener("click", function(){
   var url  = location.origin + location.pathname;

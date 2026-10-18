@@ -364,16 +364,19 @@ check('donnees structurees : categorie', ld.applicationCategory, 'TravelApplicat
 check('fonctions listees',   ld.featureList.length >= 5, true);
 
 console.log('\n== Partager l\'application ==');
-await page.click('#histBtn');
-check('bouton present', await page.isVisible('#share'), true);
+// Le bouton vit dans l'en-tete, pas dans le panneau : il reste accessible depuis
+// l'ecran principal, sans ouvrir l'historique.
+check('bouton dans l\'en-tete', await page.locator('header #share').count(), 1);
+check('absent du pied du panneau', await page.locator('#pfoot #share').count(), 0);
+check('bouton visible', await page.isVisible('#share'), true);
 // Le selecteur natif n'existe pas dans le navigateur de test : on verifie le
 // chemin de repli, la copie du lien.
 await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
 await page.evaluate(() => { delete navigator.share; });
 await page.click('#share');
-await page.waitForFunction(() => document.getElementById('share').textContent.includes('copié'),
+await page.waitForFunction(() => document.getElementById('asof').textContent.includes('copié'),
   null, { timeout: 3000 });
-check('retour visuel', (await page.textContent('#share')).includes('Lien copié'), true);
+check('retour visuel en en-tete', (await page.textContent('#asof')).includes('Lien copié'), true);
 check('lien copie', await page.evaluate(() => navigator.clipboard.readText()),
   'http://localhost:8765/');
 // Et le chemin natif, quand le selecteur existe.
@@ -393,7 +396,26 @@ await page.evaluate(() => {
 await page.click('#share');
 await page.waitForTimeout(150);
 check('annulation sans erreur', await page.isVisible('#share'), true);
-await page.click('#close');
+
+// L'en-tete ne doit pas deborder avec ce bouton supplementaire, clavier ouvert.
+for(const [w, h] of [[320, 915], [360, 430], [412, 915]]){
+  await page.setViewportSize({ width: w, height: h });
+  await page.waitForTimeout(80);
+  const r = await page.evaluate(() => {
+    const head = document.querySelector('header').getBoundingClientRect();
+    const hist = document.getElementById('histBtn').getBoundingClientRect();
+    return { debordement: Math.round(Math.max(0, hist.right - head.right)),
+             // L'en-tete centre verticalement des elements de hauteurs
+             // differentes : on compare les centres, pas les bords hauts.
+             centres: new Set([...document.querySelectorAll('header > *')]
+               .map(e => { const r = e.getBoundingClientRect();
+                           return Math.round((r.top + r.bottom) / 2); })).size,
+             scroll: document.documentElement.scrollWidth > window.innerWidth };
+  });
+  check(`en-tete a ${w}px : pas de debordement`, r.debordement === 0 && !r.scroll, true);
+  check(`en-tete a ${w}px : une seule ligne`, r.centres, 1);
+}
+await page.setViewportSize({ width: 412, height: 915 });
 
 console.log('\n== PWA ==');
 const man = await page.evaluate(async () => { const r = await fetch('manifest.webmanifest'); return { ok:r.ok, j: await r.json() }; });
