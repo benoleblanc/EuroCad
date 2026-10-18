@@ -2,14 +2,13 @@
   "name": "eurocad",
   "version": "1.0.0",
   "private": true,
-  "description": "Convertisseur EUR / CAD instantané, hors-ligne, installable.",
+  "description": "Convertisseur multi-devises et suivi de budget de voyage, hors-ligne.",
   "scripts": {
     "serve": "python3 -m http.server 8765",
     "test": "node test.mjs",
-    "build": "node build-artifact.mjs eurocad-artifact.html && node verify-artifact.mjs eurocad-artifact.html",
     "icons": "node gen-icons.mjs",
     "test:sw": "node scripts/run-sw-test.mjs",
-    "test:all": "npm test && npm run test:sw && npm run build"
+    "test:all": "npm test && npm run test:sw"
   },
   "devDependencies": {
     "playwright": "^1.56.0"

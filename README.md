@@ -97,8 +97,7 @@ npm install          # playwright, pour les tests et les icônes
 npm run serve        # http://localhost:8765
 npm test             # 104 vérifications : conversion, parseur, historique, hors-ligne, PWA
 npm run test:sw      # le cycle de mise à jour du service worker
-npm run test:all     # les trois
-npm run build        # dérive la version artifact et vérifie qu'elle rend
+npm run test:all     # les deux
 npm run icons        # régénère icons/*.png
 ```
 
@@ -113,8 +112,6 @@ plus court possible.
 | `scripts/sw-update.mjs` | Vérifie qu'un redéploiement atteint un utilisateur déjà installé |
 | `manifest.webmanifest` | Métadonnées d'installation |
 | `test.mjs` | Suite de tests Playwright |
-| `build-artifact.mjs` | Dérive la version « artifact Claude » depuis `index.html` |
-| `verify-artifact.mjs` | Ouvre la version dérivée dans un navigateur et vérifie qu'elle rend |
 
 Le calcul en ligne utilise un analyseur en descente récursive écrit à la main —
 jamais `eval` ni `new Function`.
