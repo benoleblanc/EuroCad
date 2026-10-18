@@ -20,7 +20,12 @@ for (const scheme of ['light', 'dark']) {
   const p = await ctx.newPage();
   const errs = [];
   p.on('pageerror', e => errs.push(String(e)));
-  p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
+  p.on('console', m => {
+    if (m.type() !== 'error') return;
+    // Le bac a sable bloque les appels de taux : l'app le gere et l'annonce.
+    if (/^Failed to load resource: net::ERR_/.test(m.text())) return;
+    errs.push(m.text());
+  });
   await p.goto('file:///tmp/wrapped.html', { waitUntil: 'load' });
 
   const ok = async (name, got, want) => {
@@ -33,6 +38,8 @@ for (const scheme of ['light', 'dark']) {
   await ok('champ visible', await p.isVisible('#amt'), true);
   await ok('resultat visible', await p.isVisible('#res'), true);
   await ok('7 touches', await p.locator('#keys button').count(), 7);
+  await ok('selecteur de devise', await p.locator('#curFrom').count(), 1);
+  await ok('vues d\'historique', await p.locator('#views button').count(), 4);
   await ok('bouton historique', await p.isVisible('#histBtn'), true);
   await ok('panneau masque au depart', await p.isHidden('#panel'), true);
   // Le style s'applique-t-il ? (si </style> manquait, tout serait inerte)

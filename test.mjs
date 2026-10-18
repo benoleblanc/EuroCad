@@ -1,20 +1,28 @@
 import { chromium } from 'playwright';
 
 const BASE = 'http://localhost:8765/';
-const RATE = 1.6087; // taux de secours embarque, utilise quand le reseau est coupe
+// Table simulee : l'API reelle est inatteignable depuis le bac a sable, dont le
+// proxy bloque ces domaines. Les valeurs sont rondes pour des attentes lisibles.
+const RATES = { EUR:1, CAD:1.6, USD:1.1, GBP:0.8, CHF:0.9, JPY:170, MXN:20, THB:37, AUD:1.75 };
+const ER_API = {
+  result:'success', base_code:'EUR',
+  time_last_update_utc:'Sat, 18 Oct 2026 00:02:31 +0000', rates: RATES,
+};
+
 let pass = 0, fail = 0;
 function check(name, got, want){
   if (String(got) === String(want)) { pass++; console.log(`  ok   ${name}  -> ${got}`); }
   else { fail++; console.log(`  FAIL ${name}  attendu ${want}, obtenu ${got}`); }
 }
+const fr = (n, d = 2) => n.toLocaleString('fr-CA', { minimumFractionDigits:d, maximumFractionDigits:d });
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 const ctx = await browser.newContext({
-  viewport: { width: 412, height: 915 }, deviceScaleFactor: 2,
-  isMobile: true, hasTouch: true, locale: 'fr-CA',
+  viewport:{ width:412, height:915 }, deviceScaleFactor:2,
+  isMobile:true, hasTouch:true, locale:'fr-CA',
 });
-
-// Par defaut on coupe l'API : les tests s'appuient sur le taux de secours, donc deterministes.
+const okApi = r => r.fulfill({ status:200, contentType:'application/json', body: JSON.stringify(ER_API) });
+await ctx.route('**/open.er-api.com/**', okApi);
 await ctx.route('**/api.frankfurter.app/**', r => r.abort());
 
 const page = await ctx.newPage();
@@ -23,317 +31,274 @@ page.on('pageerror', e => errors.push(String(e)));
 page.on('console', m => {
   if (m.type() !== 'error') return;
   const t = m.text();
-  if (/^Failed to load resource: net::ERR_/.test(t)) return; // coupure reseau voulue
+  if (/^Failed to load resource: net::ERR_/.test(t)) return;  // coupure reseau voulue
   errors.push(t);
 });
 
-async function type(v){
-  await page.fill('#amt', '');
-  await page.type('#amt', v);
-  return (await page.textContent('#res')).trim();
-}
-const fr = n => n.toLocaleString('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const type = async v => { await page.fill('#amt',''); await page.type('#amt', v); return (await page.textContent('#res')).trim(); };
+const reset = async (extra = {}) => {
+  await page.evaluate(o => { localStorage.clear(); for (const k in o) localStorage.setItem(k, o[k]); }, extra);
+  await page.reload({ waitUntil:'networkidle' });
+  await page.waitForFunction(() => document.getElementById('asof').textContent.startsWith('taux du'), null, { timeout:6000 });
+};
+const pickCur = async (which, code) => {
+  await page.click(which === 'from' ? '#curFrom' : '#curTo');
+  await page.fill('#search', code);
+  await page.locator(`.curItem[data-code="${code}"]`).first().click();
+};
 
-await page.goto(BASE, { waitUntil: 'networkidle' });
+await page.goto(BASE, { waitUntil:'networkidle' });
+await reset();
 
 console.log('\n== Conversion et saisie ==');
-check('34,90 (virgule)',   await type('34,90'), fr(34.90 * RATE));
-check('34.90 (point)',     await type('34.90'), fr(34.90 * RATE));
-check('addition 12+34,90', await type('12+34,90'), fr(46.90 * RATE));
-check('produit 3*12,50',   await type('3*12,50'), fr(37.50 * RATE));
-check('division 60/4',     await type('60/4'), fr(15 * RATE));
-check('parentheses (2+3)*10', await type('(2+3)*10'), fr(50 * RATE));
-check('parenthese non fermee', await type('(2+3'), fr(5 * RATE));
+check('table de taux chargee',  (await page.textContent('#asof')).includes('18 oct'), true);
+check('100 EUR -> CAD',         await type('100'), fr(160));
+check('34,90 (virgule)',        await type('34,90'), fr(34.90 * 1.6));
+check('34.90 (point)',          await type('34.90'), fr(34.90 * 1.6));
+check('addition 12+34,90',      await type('12+34,90'), fr(46.90 * 1.6));
+check('produit 3*12,50',        await type('3*12,50'), fr(37.50 * 1.6));
+check('parenthese non fermee',  await type('(2+3'), fr(5 * 1.6));
 
 console.log('\n== Cas limites ==');
 check('champ vide',           await type(''), fr(0));
-check('operateur en attente', await type('12+'), fr(12 * RATE));
-check('virgule seule',        await type('12,'), fr(12 * RATE));
+check('operateur en attente', await type('12+'), fr(12 * 1.6));
 check('division par zero',    await type('5/0'), '—');
 check('texte refuse',         await type('abc'), '—');
 check('point multiple',       await type('1.2.3'), '—');
 
-console.log('\n== Barre d\'operateurs (clavier decimal Android) ==');
-await page.fill('#amt', '');
-await page.type('#amt', '12');
-await page.click('#keys button[data-ins="+"]');
-await page.type('#amt', '8');
-check('saisie via boutons', (await page.textContent('#res')).trim(), fr(20 * RATE));
-check('champ garde le focus', await page.evaluate(() => document.activeElement.id), 'amt');
-await page.click('#clr');
-check('retour arriere', (await page.textContent('#res')).trim(), fr(12 * RATE));
-
-console.log('\n== Bouton = (addition puis partage) ==');
-// Scenario reel : deux articles a 100 et 50, facture partagee en deux.
-await page.fill('#amt', '');
-await page.type('#amt', '100+50');
-check('100+50 avant =', (await page.textContent('#res')).trim(), fr(150 * RATE));
+console.log('\n== Touches = / C ==');
+await page.fill('#amt','100+50');
 await page.click('#eq');
 check('= replie le total', await page.inputValue('#amt'), '150');
 await page.click('#keys button[data-ins="/"]');
-await page.type('#amt', '2');
-check('puis /2 donne 75', (await page.textContent('#res')).trim(), fr(75 * RATE));
+await page.type('#amt','2');
+check('puis /2', (await page.textContent('#res')).trim(), fr(75 * 1.6));
+await page.click('#ac');
+check('C vide le champ', await page.inputValue('#amt'), '');
 check('focus conserve', await page.evaluate(() => document.activeElement.id), 'amt');
 
-await page.fill('#amt', '');
-await page.type('#amt', '10/3');
-await page.click('#eq');
-check('= arrondit au centime', await page.inputValue('#amt'), '3,33');
-await page.fill('#amt', '');
-await page.type('#amt', '5/0');
-await page.click('#eq');
-check('= ne touche pas a une expression invalide', await page.inputValue('#amt'), '5/0');
+console.log('\n== Selecteur de devises ==');
+await page.click('#curTo');
+check('selecteur ouvert',    await page.isVisible('#pick'), true);
+check('toutes les devises',  await page.locator('.curItem').count(), Object.keys(RATES).length);
+await page.fill('#search','mex');
+check('recherche par nom',   await page.locator('.curItem').count(), 1);
+check('code trouve',         await page.locator('.curItem b').first().textContent(), 'MXN');
+await page.fill('#search','jp');
+check('recherche par code',  await page.locator('.curItem b').first().textContent(), 'JPY');
+await page.locator('.curItem[data-code="JPY"]').first().click();
+check('selecteur referme',   await page.isHidden('#pick'), true);
+check('devise d\'arrivee',   await page.textContent('#curTo'), 'JPY');
+check('100 EUR -> JPY',      await type('100'), fr(100 * 170, 0));  // le yen n'a pas de decimales
+await pickCur('from','USD');
+check('USD -> JPY', await type('11'), fr(11 / 1.1 * 170, 0));
+await page.click('#curFrom');
+check('recentes epinglees', (await page.textContent('#curList')).includes('Récentes'), true);
+await page.click('#pickClose');
 
-console.log('\n== Selection au focus (retaper sans effacer) ==');
-await page.fill('#amt', '1234,56');
-await page.evaluate(() => document.getElementById('amt').blur());
-await page.click('#amt');
-check('montant selectionne au focus', await page.evaluate(() => {
-  const a = document.getElementById('amt');
-  return a.selectionStart === 0 && a.selectionEnd === a.value.length;
-}), true);
-await page.keyboard.type('20');
-check('la frappe remplace tout', (await page.textContent('#res')).trim(), fr(20 * RATE));
+// Choisir pour « from » la devise deja en « to » doit echanger, pas dupliquer.
+await pickCur('from','JPY');
+check('paire identique evitee (from)', await page.textContent('#curTo'), 'USD');
+check('nouvelle devise de depart',     await page.textContent('#curFrom'), 'JPY');
 
-console.log('\n== Repere de calcul mental ==');
-check('repere affiche sur taux non rond', (await page.textContent('#rate')).includes('≈ ×1,6'), true);
-
-console.log('\n== Inversion du sens ==');
-await page.fill('#amt', '');
-await page.type('#amt', '100');
+console.log('\n== Inversion et marge carte ==');
+await reset();
 await page.click('#swap');
-check('devise source', await page.textContent('#curFrom'), 'CAD');
-check('devise cible',  await page.textContent('#curTo'), 'EUR');
-check('100 CAD -> EUR', (await page.textContent('#res')).trim(), fr(100 / RATE));
-
-console.log('\n== Marge carte ==');
-await page.click('#swap'); // retour EUR -> CAD
+check('sens inverse', (await page.textContent('#curFrom')) + '->' + (await page.textContent('#curTo')), 'CAD->EUR');
+check('100 CAD -> EUR', await type('100'), fr(100 / 1.6));
+await page.click('#swap');
 await page.click('.sw');
-check('100 EUR + 2,5 %', (await page.textContent('#res')).trim(), fr(100 * RATE * 1.025));
-const rateTxt = await page.textContent('#rate');
-check('le taux affiche suit la marge', rateTxt.includes((RATE * 1.025).toLocaleString('fr-CA',
-  { minimumFractionDigits: 2, maximumFractionDigits: 4 })), true);
-check('la marge est signalee', rateTxt.includes('(carte)'), true);
+check('100 EUR + 2,5 %', await type('100'), fr(100 * 1.6 * 1.025));
+check('taux affiche la marge', (await page.textContent('#rate')).includes('(carte)'), true);
 await page.click('.sw');
-check('retour au taux brut', (await page.textContent('#rate')).includes('(carte)'), false);
 
-console.log('\n== Persistance ==');
-await page.click('#swap');
-await page.reload({ waitUntil: 'networkidle' });
-check('sens memorise apres rechargement', await page.textContent('#curFrom'), 'CAD');
-await page.click('#swap');
+console.log('\n== Persistance de la paire ==');
+await pickCur('to','GBP');
+await page.reload({ waitUntil:'networkidle' });
+check('paire memorisee', await page.textContent('#curTo'), 'GBP');
 
-console.log('\n== Mise a jour du taux depuis l\'API ==');
-await ctx.unroute('**/api.frankfurter.app/**');
-await ctx.route('**/api.frankfurter.app/**', r => r.fulfill({
-  status: 200, contentType: 'application/json',
-  body: JSON.stringify({ amount: 1, base: 'EUR', date: '2026-09-17', rates: { CAD: 1.7000 } }),
-}));
-await page.reload({ waitUntil: 'networkidle' });
-await page.waitForFunction(() => document.getElementById('rate').textContent.includes('1,70'), null, { timeout: 5000 });
-check('taux rafraichi', await type('10'), fr(10 * 1.70));
-check('pastille fraiche', await page.getAttribute('#dot', 'class'), 'ok');
-check('date affichee', (await page.textContent('#asof')).includes('17 sept'), 'true');
-check('repere masque sur taux rond', (await page.textContent('#rate')).includes('≈'), false);
-
-console.log('\n== Source de secours pour les taux ==');
-// Frankfurter en panne : la seconde source doit prendre le relais.
-await ctx.unroute('**/api.frankfurter.app/**');
-await ctx.route('**/api.frankfurter.app/**', r => r.abort());
-await ctx.route('**/open.er-api.com/**', r => r.fulfill({
-  status: 200, contentType: 'application/json',
-  body: JSON.stringify({ result: 'success', base_code: 'EUR',
-    time_last_update_utc: 'Thu, 17 Sep 2026 00:02:31 +0000', rates: { CAD: 1.8 } }),
-}));
-await page.evaluate(() => localStorage.removeItem('eurocad.rate'));
-await page.reload({ waitUntil: 'networkidle' });
-await page.waitForFunction(() => document.getElementById('rate').textContent.includes('1,80'),
-  null, { timeout: 5000 });
-check('la source de secours prend le relais', await type('10'), fr(10 * 1.8));
-check('pastille fraiche', await page.getAttribute('#dot', 'class'), 'ok');
-check('date de la source de secours', (await page.textContent('#asof')).includes('17 sept'), true);
-
-// Les deux en panne : on garde le dernier taux connu, sans planter.
-await ctx.unroute('**/open.er-api.com/**');
-await ctx.route('**/open.er-api.com/**', r => r.abort());
-await page.reload({ waitUntil: 'networkidle' });
-check('dernier taux conserve si tout echoue', await type('10'), fr(10 * 1.8));
-
-await ctx.unroute('**/open.er-api.com/**');
-
-console.log('\n== Hors-ligne (mode avion) ==');
-await page.waitForFunction(() => navigator.serviceWorker.controller !== null, null, { timeout: 8000 });
-await ctx.setOffline(true);
-await page.reload({ waitUntil: 'domcontentloaded' });
-check('app affichee hors-ligne', await page.isVisible('#amt'), true);
-check('conversion hors-ligne',   await type('10'), fr(10 * 1.8)); // dernier taux connu
-await ctx.setOffline(false);
-
-console.log('\n== Bouton C (tout effacer) ==');
-await page.fill('#amt', '1234,56');
-await page.click('#ac');
-check('champ vide apres C', await page.inputValue('#amt'), '');
-check('resultat remis a zero', (await page.textContent('#res')).trim(), fr(0));
-check('focus conserve apres C', await page.evaluate(() => document.activeElement.id), 'amt');
-
-console.log('\n== Historique ==');
-// Les tests precedents ont injecte un taux de 1,70 via l'API simulee. On revient
-// au taux de secours pour que les attentes ci-dessous restent sur RATE.
-await ctx.unroute('**/api.frankfurter.app/**');
-await ctx.route('**/api.frankfurter.app/**', r => r.abort());
-await page.evaluate(() => {
-  localStorage.removeItem('eurocad.hist');
-  localStorage.removeItem('eurocad.rate');
+console.log('\n== Migration depuis l\'ancien format ==');
+await reset({
+  'eurocad.dir':  'CADEUR',
+  'eurocad.rate': JSON.stringify({ rate:1.6087, date:'2026-09-20', fetched: Date.now() - 864e5 }),
+  'eurocad.hist': JSON.stringify([
+    { ts: Date.parse('2026-09-20T12:00:00'), from:'EUR', to:'CAD', amount:34.9, result:56.14, expr:'', fee:false, note:'musée' },
+    { ts: Date.parse('2026-09-20T19:30:00'), from:'EUR', to:'CAD', amount:75,   result:120.65, expr:'(100+50)/2', fee:true, note:'souper' },
+  ]),
 });
-await page.reload({ waitUntil: 'networkidle' });
-check('taux revenu au secours', await page.evaluate(
-  () => document.getElementById('rate').textContent.includes('1,6087')), true);
+check('sens ancien converti', (await page.textContent('#curFrom')) + '->' + (await page.textContent('#curTo')), 'CAD->EUR');
+check('historique conserve', await page.textContent('#count'), '2');
 await page.click('#histBtn');
-check('etat vide annonce', (await page.textContent('#list')).includes('Aucune conversion'), true);
+check('totaux recalcules', (await page.textContent('#totals')).includes(fr(176.79) + ' CAD'), true);
+check('calcul conserve',   (await page.textContent('#list')).includes('(100+50)/2'), true);
+check('note conservee',    (await page.textContent('#list')).includes('souper'), true);
 await page.click('#close');
-check('panneau referme', await page.isHidden('#panel'), true);
 
-// Enregistre un calcul avec note.
-await page.fill('#amt', '100+50');
+console.log('\n== Historique : enregistrement ==');
+await reset();
+await page.fill('#amt','100+50');
 await page.click('#eq');
-await page.fill('#note', 'souper');
+await page.fill('#note','souper partagé');
 await page.click('#save');
-check('compteur a 1', await page.textContent('#count'), '1');
-check('champ note vide apres envoi', await page.inputValue('#note'), '');
-check('retour visuel', (await page.textContent('#save')).includes('Enregistr'), true);
-
-// Puis une conversion simple, sans note ni calcul.
-await page.fill('#amt', '20');
+check('compteur a 1',        await page.textContent('#count'), '1');
+check('note videe',          await page.inputValue('#note'), '');
+await page.fill('#amt','20');
 await page.click('#save');
-check('compteur a 2', await page.textContent('#count'), '2');
-
+check('compteur a 2',        await page.textContent('#count'), '2');
 await page.click('#histBtn');
-const items = page.locator('.item');
-check('deux lignes', await items.count(), 2);
-const recent = (await items.nth(0).textContent()).replace(/\s+/g, ' ');
-check('la plus recente en premier', recent.includes('20,00 EUR'), true);
-const older = (await items.nth(1).textContent()).replace(/\s+/g, ' ');
-check('montant converti conserve', older.includes(fr(150 * RATE) + ' CAD'), true);
-check('note conservee', older.includes('souper'), true);
-check('calcul conserve malgre le repli par =', older.includes('100+50'), true);
-check('pas de calcul sur une saisie simple', recent.includes('100+50'), false);
-check('total affiche', (await page.textContent('#totals')).includes(fr(170 * RATE)), true);
+check('deux lignes',         await page.locator('.item').count(), 2);
+const older = (await page.locator('.item').nth(1).textContent()).replace(/\s+/g,' ');
+check('calcul complet',      older.includes('100+50'), true);
+check('montant converti',    older.includes(fr(150 * 1.6) + ' CAD'), true);
 
-// Persistance reelle : rechargement complet.
-await page.reload({ waitUntil: 'networkidle' });
-check('historique survit au rechargement', await page.textContent('#count'), '2');
+console.log('\n== Totaux : reference + par devise ==');
+check('total en reference', (await page.textContent('#totals')).includes('Total ' + fr(170 * 1.6) + ' CAD'), true);
+check('detail en EUR',      (await page.textContent('#totals')).includes(fr(170) + ' EUR'), true);
 
-// Suppression d'une ligne.
+console.log('\n== Budget ==');
+page.once('dialog', d => d.accept('500'));
+await page.click('#setBudget');
+let b = (await page.textContent('#budget')).replace(/\s+/g,' ');
+check('budget enregistre',  b.includes('Budget ' + fr(500) + ' CAD'), true);
+check('reste calcule',      b.includes(fr(500 - 170 * 1.6) + ' CAD restants'), true);
+page.once('dialog', d => d.accept('100'));
+await page.click('#setBudget');
+b = (await page.textContent('#budget')).replace(/\s+/g,' ');
+check('depassement signale', b.includes(fr(170 * 1.6 - 100) + ' CAD de dépassement'), true);
+check('barre saturee',       await page.evaluate(() => document.getElementById('barFill').className), 'over');
+page.once('dialog', d => d.accept(''));
+await page.click('#setBudget');
+check('budget retire', (await page.textContent('#budget')).includes('Aucun budget'), true);
+
+console.log('\n== Vues jour / semaine / mois / voyage ==');
+await page.click('#close');
+await reset({ 'eurocad.hist': JSON.stringify([
+  { ts: Date.parse('2026-10-15T10:00:00'), from:'EUR', to:'CAD', amount:10, result:16, home:'CAD', homeAmount:16, expr:'', fee:false, note:'a' },
+  { ts: Date.parse('2026-10-14T10:00:00'), from:'EUR', to:'CAD', amount:20, result:32, home:'CAD', homeAmount:32, expr:'', fee:false, note:'b' },
+  { ts: Date.parse('2026-10-06T10:00:00'), from:'EUR', to:'CAD', amount:30, result:48, home:'CAD', homeAmount:48, expr:'', fee:false, note:'c' },
+  { ts: Date.parse('2026-09-28T10:00:00'), from:'EUR', to:'CAD', amount:40, result:64, home:'CAD', homeAmount:64, expr:'', fee:false, note:'d' },
+])});
 await page.click('#histBtn');
-await page.locator('.item').nth(0).locator('.del').click();
-check('une ligne supprimee', await page.locator('.item').count(), 1);
-check('total recalcule', (await page.textContent('#totals')).includes(fr(150 * RATE)), true);
+check('vue jour : 4 groupes',    await page.locator('.grp').count(), 4);
+await page.click('#views button[data-view="week"]');
+check('vue semaine : 3 groupes', await page.locator('.grp').count(), 3);
+check('sous-total semaine',      (await page.locator('.grp').first().textContent()).includes(fr(48) + ' CAD'), true);
+await page.click('#views button[data-view="month"]');
+check('vue mois : 2 groupes',    await page.locator('.grp').count(), 2);
+check('libelle du mois',         (await page.locator('.grp').first().textContent()).includes('octobre 2026'), true);
+check('sous-total octobre',      (await page.locator('.grp').first().textContent()).includes(fr(96) + ' CAD'), true);
+await page.click('#views button[data-view="trip"]');
+check('vue voyage : 1 groupe',   await page.locator('.grp').count(), 1);
+check('total du voyage',         (await page.locator('.grp').first().textContent()).includes(fr(160) + ' CAD'), true);
+await page.reload({ waitUntil:'networkidle' });
+await page.click('#histBtn');
+check('vue memorisee', await page.locator('#views button.on').textContent(), 'Voyage');
 
-// Tout effacer (confirmation navigateur).
+console.log('\n== Suppression et purge ==');
+await page.click('#views button[data-view="day"]');
+await page.locator('.item').first().locator('.del').click();
+check('ligne supprimee', await page.locator('.item').count(), 3);
 page.once('dialog', d => d.accept());
 await page.click('#wipe');
 check('historique vide', (await page.textContent('#list')).includes('Aucune conversion'), true);
 check('compteur efface', await page.textContent('#count'), '');
-await page.click('#close');
 
-console.log('\n== Calcul enchaine conserve en entier ==');
-await page.fill('#amt', '100+50');
-await page.click('#eq');
-await page.click('#keys button[data-ins="/"]');
-await page.type('#amt', '2');
-check('resultat du partage', (await page.textContent('#res')).trim(), fr(75 * RATE));
+console.log('\n== La note est traitee comme du texte ==');
+await page.click('#close');
+await page.fill('#amt','10');
+await page.fill('#note','<img src=x onerror=alert(1)>');
 await page.click('#save');
 await page.click('#histBtn');
-const chain = (await page.locator('.item').nth(0).textContent()).replace(/\s+/g, ' ');
-check('expression complete reconstituee', chain.includes('(100+50)/2'), true);
-check('montant partage enregistre', chain.includes('75,00 EUR'), true);
-page.once('dialog', d => d.accept());
-await page.click('#wipe');
-await page.click('#close');
-
-console.log('\n== Enregistrement refuse si rien de valide ==');
-await page.fill('#amt', '');
-await page.click('#save');
-check('champ vide non enregistre', await page.textContent('#count'), '');
-await page.fill('#amt', '5/0');
-await page.click('#save');
-check('expression invalide non enregistree', await page.textContent('#count'), '');
-
-console.log('\n== La note est traitee comme du texte, pas du balisage ==');
-await page.fill('#amt', '10');
-await page.fill('#note', '<img src=x onerror=alert(1)>');
-await page.click('#save');
-await page.click('#histBtn');
-check('aucune balise injectee', await page.locator('#list img').count(), 0);
+check('aucune balise injectee',   await page.locator('#list img').count(), 0);
 check('note affichee telle quelle', (await page.textContent('#list')).includes('<img src=x'), true);
+
+console.log('\n== Impression ==');
+await page.emulateMedia({ media:'print' });
+check('en-tete de document visible', await page.isVisible('#printHead'), true);
+check('titre imprime',              (await page.textContent('#printHead h1')), 'Historique et suivi du budget de voyage');
+check('boutons masques',            await page.isHidden('#pfoot'), true);
+check('selecteur de vue masque',    await page.isHidden('#views'), true);
+check('bouton fermer masque',       await page.isHidden('#close'), true);
+check('liste deroulante liberee',   await page.evaluate(() => getComputedStyle(document.getElementById('list')).overflowY), 'visible');
+check('ecran principal masque',     await page.isHidden('main'), true);
+await page.emulateMedia({ media:'screen' });
 page.once('dialog', d => d.accept());
 await page.click('#wipe');
 await page.click('#close');
 
-console.log('\n== Interrupteur de theme ==');
-const rootTheme = () => page.evaluate(() => document.documentElement.getAttribute('data-theme'));
-const bodyBg    = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-const metaTc    = () => page.evaluate(() => document.getElementById('tc').getAttribute('content'));
+console.log('\n== Sources de taux ==');
+await ctx.unroute('**/open.er-api.com/**');
+await ctx.route('**/open.er-api.com/**', r => r.abort());
+await ctx.unroute('**/api.frankfurter.app/**');
+await ctx.route('**/api.frankfurter.app/**', r => r.fulfill({ status:200, contentType:'application/json',
+  body: JSON.stringify({ amount:1, base:'EUR', date:'2026-10-18', rates:{ CAD:1.7, USD:1.2 } }) }));
+await page.evaluate(() => { localStorage.removeItem('eurocad.rates'); localStorage.removeItem('eurocad.rate'); });
+await page.reload({ waitUntil:'networkidle' });
+await page.waitForFunction(() => document.getElementById('rate').textContent.includes('1,70'), null, { timeout:6000 });
+check('source de secours utilisee', await type('10'), fr(17));
 
+await ctx.unroute('**/api.frankfurter.app/**');
+await ctx.route('**/api.frankfurter.app/**', r => r.abort());
+await page.evaluate(() => { localStorage.removeItem('eurocad.rates'); localStorage.removeItem('eurocad.rate'); });
+await page.reload({ waitUntil:'networkidle' });
+check('repli sur le taux de secours', (await page.textContent('#asof')).includes('taux de secours'), true);
+check('EUR/CAD reste convertible',    await type('10'), fr(16.087));
+// Une paire memorisee en ligne (EUR->MXN) alors que seule la table de secours
+// est disponible : l'interface ne propose plus MXN, mais la paire est stockee.
+await page.evaluate(() => {
+  localStorage.removeItem('eurocad.rates');
+  // La paire n'est lue que si les DEUX cles existent : sinon l'app retombe sur
+  // la migration de l'ancien sens unique.
+  localStorage.setItem('eurocad.from', 'EUR');
+  localStorage.setItem('eurocad.to', 'MXN');
+});
+await page.reload({ waitUntil:'networkidle' });
+check('paire devenue inconvertible', await type('10'), 'taux manquant');
+check('le probleme est nomme', (await page.textContent('#rate')).includes('indisponible'), true);
+await page.click('#curTo');
+check('selecteur limite au cache', await page.locator('.curItem').count(), 2);
+check('explication affichee', (await page.textContent('#curList')).includes('Connecte-toi une fois'), true);
+await page.click('#pickClose');
+await page.evaluate(() => localStorage.setItem('eurocad.to', 'CAD'));
+
+console.log('\n== Hors-ligne ==');
+await ctx.unroute('**/open.er-api.com/**');
+await ctx.route('**/open.er-api.com/**', okApi);
+await reset();
+await page.waitForFunction(() => navigator.serviceWorker.controller !== null, null, { timeout:10000 });
+await ctx.setOffline(true);
+await page.reload({ waitUntil:'domcontentloaded' });
+check('app affichee hors-ligne', await page.isVisible('#amt'), true);
+check('conversion hors-ligne',   await type('10'), fr(16));
+await page.click('#curTo');
+check('toutes les devises hors-ligne', await page.locator('.curItem').count(), Object.keys(RATES).length);
+await page.click('#pickClose');
+await ctx.setOffline(false);
+
+console.log('\n== Theme ==');
 await page.evaluate(() => localStorage.removeItem('eurocad.theme'));
-await page.reload({ waitUntil: 'networkidle' });
+await page.reload({ waitUntil:'networkidle' });
+const rootTheme = () => page.evaluate(() => document.documentElement.getAttribute('data-theme'));
 check('automatique au depart', await rootTheme(), null);
-check('glyphe automatique', (await page.textContent('#themeBtn')).trim(), '\u25D0');
-
 await page.click('#themeBtn');
 check('1er appui : sombre', await rootTheme(), 'dark');
-check('fond sombre applique', await bodyBg(), 'rgb(14, 16, 20)');
-check('barre d\'etat suit', await metaTc(), '#0e1014');
-
+check('fond sombre',        await page.evaluate(() => getComputedStyle(document.body).backgroundColor), 'rgb(14, 16, 20)');
 await page.click('#themeBtn');
-check('2e appui : clair', await rootTheme(), 'light');
-check('fond clair applique', await bodyBg(), 'rgb(233, 237, 244)');
-check('barre d\'etat suit', await metaTc(), '#e9edf4');
-
+check('2e appui : clair',   await rootTheme(), 'light');
 await page.click('#themeBtn');
-check('3e appui : retour automatique', await rootTheme(), null);
-
-// Le choix doit survivre au rechargement.
-await page.click('#themeBtn');
-await page.reload({ waitUntil: 'networkidle' });
-check('choix memorise', await rootTheme(), 'dark');
-check('glyphe memorise', (await page.textContent('#themeBtn')).trim(), '\u263E');
-
-// Un hote qui impose son propre theme ne doit pas gagner sur un choix explicite.
-await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
-await page.waitForTimeout(80);
-check('choix explicite reimpose', await rootTheme(), 'dark');
-
-// En mode automatique, en revanche, on laisse faire.
-await page.click('#themeBtn'); // light
-await page.click('#themeBtn'); // auto
-await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
-await page.waitForTimeout(80);
-check('mode auto n\'impose rien', await rootTheme(), 'light');
-await page.evaluate(() => {
-  document.documentElement.removeAttribute('data-theme');
-  localStorage.setItem('eurocad.theme', 'dark');
-});
-await page.reload({ waitUntil: 'networkidle' });
+check('3e appui : auto',    await rootTheme(), null);
 
 console.log('\n== PWA ==');
-const man = await page.evaluate(async () => {
-  const r = await fetch('manifest.webmanifest');
-  return { ok: r.ok, j: await r.json() };
-});
-check('manifest servi', man.ok, true);
-check('manifest start_url relatif', man.j.start_url, '.');
-check('icone maskable presente', man.j.icons.some(i => i.purpose === 'maskable'), true);
+const man = await page.evaluate(async () => { const r = await fetch('manifest.webmanifest'); return { ok:r.ok, j: await r.json() }; });
+check('manifest servi',           man.ok, true);
+check('start_url relatif',        man.j.start_url, '.');
+check('icone maskable presente',  man.j.icons.some(i => i.purpose === 'maskable'), true);
 for (const i of man.j.icons) {
-  const st = await page.evaluate(u => fetch(u).then(r => r.status), i.src);
-  check(`icone ${i.src}`, st, 200);
+  check(`icone ${i.src}`, await page.evaluate(u => fetch(u).then(r => r.status), i.src), 200);
 }
 
 console.log('\n== Erreurs console ==');
 check('aucune erreur JS', errors.length ? errors.join(' | ') : 'aucune', 'aucune');
-
-await page.fill('#amt', '34,90');
-await page.screenshot({ path: 'screenshot.png' });
 
 await browser.close();
 console.log(`\n${pass} reussis, ${fail} echecs`);

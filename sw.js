@@ -7,7 +7,7 @@
 // La page passe donc en réseau d'abord, avec repli sur le cache — et un délai
 // court pour ne pas sacrifier le démarrage quand la connexion traîne. Les
 // ressources fixes (icônes, manifeste) restent en cache d'abord.
-var CACHE = "eurocad-v2";
+var CACHE = "eurocad-v3";
 var DOC_TIMEOUT = 1200;   // au-delà, on sert le cache et on met à jour derrière
 
 var SHELL = [

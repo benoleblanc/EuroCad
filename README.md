@@ -1,7 +1,7 @@
 # EuroCad
 
-Convertisseur **EUR ↔ CAD** conçu pour une seule chose : donner le prix en 2 secondes,
-debout dans un magasin, sans réseau.
+Convertisseur **multi-devises** et suivi de budget de voyage, conçu pour donner le prix
+en 2 secondes, debout dans un magasin, sans réseau.
 
 👉 **https://benoleblanc.github.io/EuroCad/**
 
@@ -30,7 +30,8 @@ est en cause.
 
 | | |
 |---|---|
-| `⇅` | Inverse le sens (EUR→CAD / CAD→EUR). Le choix est mémorisé. |
+| `EUR` `CAD` | Touche un code de devise pour en changer : recherche par code ou par nom, devises récentes épinglées en haut. ~160 devises. |
+| `⇅` | Inverse le sens. La paire est mémorisée. |
 | `+ − × ÷` | Additionner des articles ou partager une addition : `12+34,90`, `86/4`. Ces touches existent parce que le clavier numérique d'Android n'a pas d'opérateurs. |
 | `=` | Replie le calcul en cours : `100+50` puis `=` donne `150`, pour enchaîner `/2`. |
 | `⌫` / `C` | Efface un caractère / vide le champ. |
@@ -40,7 +41,19 @@ est en cause.
 | **Enregistrer** | Range la conversion dans l'historique, avec la note facultative et le calcul s'il y en a eu. |
 | **Historique** | Liste des conversions enregistrées, total par devise, suppression ligne à ligne. |
 
-## Historique
+## Historique et suivi du budget
+
+Quatre vues — **jour, semaine, mois, voyage** — chacune avec son sous-total. Un
+budget facultatif affiche le reste à dépenser et la moyenne par jour.
+
+Les totaux sont donnés dans une **devise de référence** (CAD par défaut, modifiable),
+avec le détail par devise dépensée. Chaque ligne est figée au taux du jour de
+l'achat : une dépense de juin n'est pas recalculée au taux d'octobre.
+
+**Imprimer / PDF** passe par `window.print()` et une feuille de style dédiée :
+sur Android, *Enregistrer au format PDF*. Aucune bibliothèque, fonctionne hors-ligne.
+
+## Détails de l'historique
 
 Chaque ligne conserve le montant, le résultat, la note, le calcul et l'horodatage.
 Un calcul replié par `=` est reconstitué en entier : taper `100+50`, `=`, `/2`
@@ -57,11 +70,17 @@ La virgule et le point sont acceptés indifféremment.
 
 ## Les taux
 
-Source principale : [Frankfurter](https://www.frankfurter.app/), qui republie les
-taux de référence de la **Banque centrale européenne**. Gratuit, sans clé d'API.
-En cas d'indisponibilité, [open.er-api.com](https://open.er-api.com/) prend le
-relais — une app de voyage ne doit pas rester sur un taux périmé parce qu'un
-service est momentanément en panne.
+Source principale : [open.er-api.com](https://open.er-api.com/) (~160 devises),
+avec [Frankfurter](https://www.frankfurter.app/) (taux de référence de la **Banque
+centrale européenne**, ~31 devises) en secours.
+
+**Les deux sont sans clé d'API, et c'est un choix délibéré.** EuroCad est un site
+statique : toute clé qu'il contiendrait serait lisible dans le code source de la
+page, donc utilisable par n'importe qui. Les services à clé (ExchangeRate-API,
+Open Exchange Rates) exigeraient un serveur pour la protéger.
+
+Une seule requête ramène **toute la table de taux**. Changer de devise ne coûte
+ensuite aucun réseau, et le mode avion couvre toutes les paires.
 
 Deux limites à connaître :
 
@@ -76,7 +95,7 @@ Deux limites à connaître :
 ```bash
 npm install          # playwright, pour les tests et les icônes
 npm run serve        # http://localhost:8765
-npm test             # 92 vérifications : conversion, parseur, historique, hors-ligne, PWA
+npm test             # 94 vérifications : conversion, parseur, historique, hors-ligne, PWA
 npm run test:sw      # le cycle de mise à jour du service worker
 npm run test:all     # les trois
 npm run build        # dérive la version artifact et vérifie qu'elle rend

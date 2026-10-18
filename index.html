@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>EuroCad</title>
-<meta name="description" content="Convertisseur EUR / CAD instantané, fonctionne hors-ligne.">
+<meta name="description" content="Convertisseur multi-devises et suivi de budget de voyage, hors-ligne.">
 <link rel="manifest" href="manifest.webmanifest">
 <meta id="tc" name="theme-color" content="#e9edf4">
 <meta name="mobile-web-app-capable" content="yes">
@@ -14,21 +14,21 @@
 :root{
   --bg:#e9edf4; --surface:#ffffff; --line:#d7dee9;
   --text:#141821; --muted:#596273; --accent:#1e47c8;
-  --ok:#15803d; --stale:#b45309; --old:#98a1b0;
+  --ok:#15803d; --stale:#b45309; --old:#98a1b0; --warn:#b91c1c;
   --shadow:0 1px 2px rgba(19,27,45,.05), 0 3px 10px rgba(19,27,45,.06);
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --bg:#0e1014; --surface:#171a20; --line:#262b34;
     --text:#f0f2f6; --muted:#939bab; --accent:#6ea8ff;
-    --ok:#22c55e; --stale:#f59e0b; --old:#8b93a1;
+    --ok:#22c55e; --stale:#f59e0b; --old:#8b93a1; --warn:#f87171;
     --shadow:none;
   }
 }
 :root[data-theme="dark"]{
   --bg:#0e1014; --surface:#171a20; --line:#262b34;
   --text:#f0f2f6; --muted:#939bab; --accent:#6ea8ff;
-  --ok:#22c55e; --stale:#f59e0b; --old:#8b93a1;
+  --ok:#22c55e; --stale:#f59e0b; --old:#8b93a1; --warn:#f87171;
   --shadow:none;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -55,10 +55,18 @@ main{flex:1;display:flex;flex-direction:column;justify-content:safe center;gap:1
 .row,#keys,#swap,#saveRow{flex:none}
 .row{
   background:var(--surface); border:1px solid var(--line); border-radius:16px;
-  padding:14px 16px; display:flex; align-items:baseline; gap:12px;
+  padding:14px 16px; display:flex; align-items:center; gap:12px;
   box-shadow:var(--shadow);
 }
-.cur{font-size:15px;font-weight:600;color:var(--muted);flex:none;width:52px}
+/* Le code de devise est un bouton : il ouvre le sélecteur. */
+.cur{
+  font-size:15px;font-weight:600;color:var(--text);flex:none;
+  background:transparent;border:1px solid var(--line);border-radius:9px;
+  padding:6px 9px;font-family:inherit;cursor:pointer;touch-action:manipulation;
+  display:flex;align-items:center;gap:4px;line-height:1;
+}
+.cur:active{background:var(--line)}
+.cur::after{content:"\25BE";font-size:10px;color:var(--muted)}
 #amt,#res{
   flex:1;min-width:0;font-size:38px;font-weight:600;line-height:1.15;
   text-align:right;font-variant-numeric:tabular-nums;letter-spacing:-.5px;
@@ -67,7 +75,7 @@ main{flex:1;display:flex;flex-direction:column;justify-content:safe center;gap:1
 #amt:focus{outline:none}
 #amt::placeholder{color:var(--muted);opacity:.45}
 #res{color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#res.err{color:var(--muted);opacity:.5}
+#res.err{color:var(--muted);opacity:.5;font-size:24px}
 /* Le clavier decimal d'Android n'offre aucun operateur : on les fournit ici. */
 #keys{display:flex;gap:6px}
 #keys button{
@@ -99,7 +107,7 @@ main{flex:1;display:flex;flex-direction:column;justify-content:safe center;gap:1
 #save:active{opacity:.8}
 #save.done{background:var(--ok);border-color:var(--ok)}
 footer{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;color:var(--muted);flex:none}
-#rate{font-variant-numeric:tabular-nums}
+#rate{font-variant-numeric:tabular-nums;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sw{display:flex;align-items:center;gap:7px;cursor:pointer;flex:none;user-select:none}
 .sw input{position:absolute;opacity:0;pointer-events:none}
 .track{width:34px;height:20px;border-radius:10px;background:var(--line);position:relative;transition:background .15s;flex:none}
@@ -115,29 +123,75 @@ footer{display:flex;align-items:center;justify-content:space-between;gap:12px;fo
 #themeBtn{margin-left:auto;padding:6px 10px;font-size:14px;line-height:1.3}
 #count{font-variant-numeric:tabular-nums;font-weight:600;color:var(--accent)}
 
-/* ---- Historique : panneau plein écran, hors du chemin rapide ------------- */
-#panel{
+/* ---- Panneaux plein écran, hors du chemin rapide ------------------------- */
+.panel{
   position:fixed;top:0;left:0;right:0;height:var(--vvh, 100dvh);
   z-index:10;background:var(--bg);display:flex;flex-direction:column;
   padding:calc(env(safe-area-inset-top) + 12px) calc(env(safe-area-inset-right) + 16px)
           calc(env(safe-area-inset-bottom) + 12px) calc(env(safe-area-inset-left) + 16px);
 }
-#panelHead{display:flex;align-items:center;gap:10px;flex:none;margin-bottom:10px}
-#panelHead h2{margin:0;font-size:17px;font-weight:600}
-#totals{flex:none;display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
-.total{
-  background:var(--surface);border:1px solid var(--line);border-radius:12px;
-  padding:9px 13px;font-size:14px;font-variant-numeric:tabular-nums;
+#pick{z-index:11}
+.phead{display:flex;align-items:center;gap:10px;flex:none;margin-bottom:10px}
+.phead h2{margin:0;font-size:16px;font-weight:600;line-height:1.25}
+.phead .ghost{margin-left:auto}
+
+/* ---- Sélecteur de devises ------------------------------------------------ */
+#search{
+  flex:none;width:100%;padding:11px 13px;font:15px/1.3 inherit;font-family:inherit;
+  border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--text);
+  margin-bottom:9px;
 }
-.total b{font-size:16px}
-#list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:8px;min-height:0}
+#search:focus{outline:none;border-color:var(--accent)}
+#curList{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0;
+         display:flex;flex-direction:column;gap:5px}
+.curItem{
+  display:flex;align-items:baseline;gap:9px;text-align:left;width:100%;
+  background:var(--surface);border:1px solid var(--line);border-radius:11px;
+  padding:10px 13px;font:15px/1.3 inherit;font-family:inherit;color:var(--text);
+  cursor:pointer;touch-action:manipulation;
+}
+.curItem:active{background:var(--line)}
+.curItem b{font-weight:600;flex:none;min-width:44px;font-variant-numeric:tabular-nums}
+.curItem span{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.curItem.on{border-color:var(--accent)}
+.sect{font-size:12px;color:var(--muted);padding:4px 2px 0;text-transform:uppercase;letter-spacing:.4px}
+
+/* ---- Historique et budget ------------------------------------------------ */
+#views{flex:none;display:flex;gap:5px;margin-bottom:9px}
+#views button{
+  flex:1;padding:8px 0;font:13px/1.3 inherit;font-family:inherit;color:var(--muted);
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  cursor:pointer;touch-action:manipulation;
+}
+#views button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+#budget{
+  flex:none;background:var(--surface);border:1px solid var(--line);border-radius:13px;
+  padding:11px 13px;margin-bottom:9px;box-shadow:var(--shadow);
+}
+.bline{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:13.5px}
+.bline b{font-size:16px;font-variant-numeric:tabular-nums}
+#bar{height:7px;border-radius:4px;background:var(--line);margin:8px 0 6px;overflow:hidden}
+#barFill{height:100%;background:var(--accent);border-radius:4px;transition:width .2s}
+#barFill.over{background:var(--warn)}
+#bsub{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+#totals{flex:none;display:flex;flex-wrap:wrap;gap:7px;margin-bottom:9px}
+.total{
+  background:var(--surface);border:1px solid var(--line);border-radius:11px;
+  padding:8px 12px;font-size:13.5px;font-variant-numeric:tabular-nums;
+}
+.total.home{border-color:var(--accent)}
+.total b{font-size:15px}
+#list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:7px;min-height:0}
+.grp{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+     padding:9px 2px 1px;font-size:13px;font-weight:600}
+.grp .sum{color:var(--accent);font-variant-numeric:tabular-nums}
 .item{
   background:var(--surface);border:1px solid var(--line);border-radius:13px;
   padding:11px 13px;display:flex;align-items:flex-start;gap:10px;
   box-shadow:var(--shadow);
 }
 .item .main{flex:1;min-width:0}
-.item .conv{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+.item .conv{font-size:15.5px;font-weight:600;font-variant-numeric:tabular-nums}
 .item .conv .arrow{color:var(--muted);font-weight:400;margin:0 5px}
 .item .meta{font-size:12.5px;color:var(--muted);margin-top:3px;word-break:break-word}
 .item .note{color:var(--text);opacity:.85}
@@ -147,8 +201,8 @@ footer{display:flex;align-items:center;justify-content:space-between;gap:12px;fo
 }
 .del:active{background:var(--line)}
 #empty{color:var(--muted);font-size:14px;text-align:center;padding:34px 0}
-#panelFoot{flex:none;margin-top:10px;display:flex;justify-content:flex-end}
-#wipe{color:#dc2626;border-color:var(--line)}
+#pfoot{flex:none;margin-top:10px;display:flex;gap:8px;justify-content:space-between}
+#wipe{color:var(--warn)}
 button:focus-visible,input:focus-visible,.sw input:focus-visible + .track{outline:2px solid var(--accent);outline-offset:2px}
 @media (prefers-reduced-motion: reduce){ *{transition:none!important} }
 
@@ -170,11 +224,12 @@ body.tight #keys button{padding:7px 0;font-size:15px}
 body.tight header,body.tight footer{font-size:12px}
 body.tight header{min-height:26px}
 body.tight .ghost{padding:4px 9px}
+body.tight .cur{padding:5px 8px;font-size:14px}
 
 body.micro main{gap:4px}
 body.micro .row{padding:5px 11px;border-radius:11px}
 body.micro #amt,body.micro #res{font-size:19px}
-body.micro .cur{font-size:13px;width:42px}
+body.micro .cur{font-size:12px;padding:4px 7px}
 body.micro #swap{width:24px;height:24px;font-size:13px}
 body.micro #keys{gap:4px}
 body.micro #keys button{padding:5px 0;font-size:14px}
@@ -182,6 +237,28 @@ body.micro #note,body.micro #save{padding-top:5px;padding-bottom:5px;font-size:1
 body.micro #save{min-width:88px}
 body.micro header,body.micro footer{font-size:11px}
 body.micro header{min-height:22px}
+
+/* ---- Impression : le panneau devient un document ------------------------- */
+#printHead{display:none}
+@media print{
+  html,body{position:static;height:auto;overflow:visible;background:#fff;color:#000}
+  body > *:not(.panel){display:none!important}
+  #pick{display:none!important}
+  .panel{position:static;height:auto;padding:0;background:#fff;color:#000;display:block}
+  .phead,#views,#pfoot,.del,#bar,#setBudget{display:none!important}
+  #printHead{display:block;margin-bottom:14px}
+  #printHead h1{font-size:17pt;margin:0 0 3px}
+  #printHead .sub{font-size:9pt;color:#555}
+  #budget,.item,.total{box-shadow:none;border:1px solid #bbb;background:#fff;color:#000;
+                       break-inside:avoid;page-break-inside:avoid}
+  #totals{display:flex;gap:8px;flex-wrap:wrap;border:0;background:none}
+  #list{display:block;overflow:visible;height:auto}
+  .item{margin-bottom:5px}
+  .grp{break-after:avoid;page-break-after:avoid;border-bottom:1px solid #ccc;margin-top:10px}
+  .item .meta,.item .conv .arrow,#bsub,.bline{color:#444}
+  .grp .sum,.item .conv{color:#000}
+  @page{margin:14mm}
+}
 </style>
 </head>
 <body>
@@ -195,7 +272,7 @@ body.micro header{min-height:22px}
 
 <main>
   <div class="row">
-    <span class="cur" id="curFrom">EUR</span>
+    <button class="cur" id="curFrom" type="button" aria-label="Changer la devise de départ">EUR</button>
     <input id="amt" type="text" inputmode="decimal" enterkeyhint="done" placeholder="0"
            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
            aria-label="Montant à convertir" autofocus>
@@ -214,7 +291,7 @@ body.micro header{min-height:22px}
   <button id="swap" type="button" aria-label="Inverser le sens de conversion">⇅</button>
 
   <div class="row">
-    <span class="cur" id="curTo">CAD</span>
+    <button class="cur" id="curTo" type="button" aria-label="Changer la devise d'arrivée">CAD</button>
     <output id="res" for="amt">0,00</output>
   </div>
 
@@ -234,128 +311,182 @@ body.micro header{min-height:22px}
   </label>
 </footer>
 
-<div id="panel" hidden role="dialog" aria-modal="true" aria-label="Historique des conversions">
-  <div id="panelHead">
-    <h2>Historique</h2>
-    <button id="close" class="ghost" type="button" style="margin-left:auto">Fermer</button>
+<div id="panel" class="panel" hidden role="dialog" aria-modal="true"
+     aria-label="Historique et suivi du budget de voyage">
+  <div id="printHead">
+    <h1>Historique et suivi du budget de voyage</h1>
+    <div class="sub" id="printSub"></div>
   </div>
+  <div class="phead">
+    <h2>Historique et suivi<br>du budget de voyage</h2>
+    <button id="close" class="ghost" type="button">Fermer</button>
+  </div>
+  <div id="views" role="tablist">
+    <button type="button" data-view="day">Jour</button>
+    <button type="button" data-view="week">Semaine</button>
+    <button type="button" data-view="month">Mois</button>
+    <button type="button" data-view="trip">Voyage</button>
+  </div>
+  <div id="budget"></div>
   <div id="totals"></div>
   <div id="list"></div>
-  <div id="panelFoot"><button id="wipe" class="ghost" type="button">Tout effacer</button></div>
+  <div id="pfoot">
+    <button id="wipe" class="ghost" type="button">Tout effacer</button>
+    <button id="print" class="ghost" type="button">Imprimer / PDF</button>
+  </div>
+</div>
+
+<div id="pick" class="panel" hidden role="dialog" aria-modal="true" aria-label="Choisir une devise">
+  <div class="phead">
+    <h2 id="pickTitle">Devise</h2>
+    <button id="pickClose" class="ghost" type="button">Fermer</button>
+  </div>
+  <input id="search" type="text" placeholder="Rechercher (code ou nom)" aria-label="Rechercher une devise"
+         autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+  <div id="curList"></div>
 </div>
 
 <script>
 (function(){
 "use strict";
 
-// Taux de secours : BCE, utilisé uniquement au tout premier lancement hors-ligne.
-// Écrasé dès le premier chargement en ligne.
-var SEED = { rate: 1.6087, date: "2026-09-16", fetched: 0 };
-// Deux sources, essayées dans l'ordre. Une app de voyage ne doit pas rester
-// sur un taux périmé parce qu'un service est momentanément indisponible.
+/* ---- Constantes et stockage ---------------------------------------------- */
+var VERSION = "4";
+var FEE  = 0.025;      // marge carte approximative
+var HMAX = 500;        // plafond de l'historique
+var RMAX = 6;          // devises récentes épinglées en haut du sélecteur
+
+// Table de secours : seulement les deux devises dont je connais réellement le
+// taux. Inventer les autres afficherait des montants faux sans avertissement ;
+// elles apparaissent après le premier chargement en ligne, qui ramène tout.
+var SEED = { base:"EUR", rates:{ EUR:1, CAD:1.6087 }, date:"2026-09-16", fetched:0 };
+
+// Une seule requête ramène toute la table : changer de devise ne coûte ensuite
+// aucun réseau, et le mode avion couvre toutes les paires.
+// open.er-api d'abord pour la couverture (~161 devises), Frankfurter (BCE,
+// ~31 devises) en secours.
 var SOURCES = [
-  { url: "https://api.frankfurter.app/latest?from=EUR&to=CAD",
-    pick: function(j){ return j && j.rates ? { rate: j.rates.CAD, date: j.date } : null; } },
-  { url: "https://open.er-api.com/v6/latest/EUR",
-    pick: function(j){
+  { url:"https://open.er-api.com/v6/latest/EUR",
+    pick:function(j){
       if(!j || !j.rates) return null;
       var d = j.time_last_update_utc ? new Date(j.time_last_update_utc) : null;
-      return { rate: j.rates.CAD,
+      return { base:"EUR", rates:j.rates,
                date: d && isFinite(d.getTime()) ? d.toISOString().slice(0,10) : null };
-    } }
+    } },
+  { url:"https://api.frankfurter.app/latest?from=EUR",
+    pick:function(j){ return j && j.rates ? { base:"EUR", rates:j.rates, date:j.date } : null; } }
 ];
-var FEE  = 0.025;      // marge carte approximative
-var HMAX = 200;        // plafond de l'historique, pour ne pas gonfler sans fin
-var VERSION = "3";     // affichée en touchant l'en-tête, pour lever tout doute
-                       // sur la version réellement servie par le cache
 
-var LS_RATE = "eurocad.rate", LS_DIR = "eurocad.dir",
-    LS_FEE  = "eurocad.fee",  LS_HIST = "eurocad.hist";
-
-var $ = function(id){ return document.getElementById(id); };
-var amt  = $("amt"),  res   = $("res"),  dot  = $("dot"),   asof = $("asof"),
-    rateL= $("rate"), curF  = $("curFrom"), curT = $("curTo"), fee = $("fee"),
-    note = $("note"), save  = $("save"), panel= $("panel"), list = $("list"),
-    totals=$("totals"), count= $("count");
-
-var nf  = new Intl.NumberFormat("fr-CA",{minimumFractionDigits:2,maximumFractionDigits:2});
-var nf4 = new Intl.NumberFormat("fr-CA",{minimumFractionDigits:2,maximumFractionDigits:4});
-var df  = new Intl.DateTimeFormat("fr-CA",{day:"numeric",month:"short"});
-var dfh = new Intl.DateTimeFormat("fr-CA",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+var LS = {
+  rates:"eurocad.rates", from:"eurocad.from", to:"eurocad.to", home:"eurocad.home",
+  recent:"eurocad.recent", fee:"eurocad.fee", hist:"eurocad.hist",
+  theme:"eurocad.theme", view:"eurocad.view", budget:"eurocad.budget",
+  dirOld:"eurocad.dir", rateOld:"eurocad.rate"
+};
 
 function store(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
 function load(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function drop(k){ try{ localStorage.removeItem(k); }catch(e){} }
+function loadJSON(k, fallback){
+  try{ var r = load(k); return r ? JSON.parse(r) : fallback; }catch(e){ return fallback; }
+}
 
-var data = SEED;
-try{
-  var raw = load(LS_RATE);
-  if(raw){
-    var p = JSON.parse(raw);
-    if(p && typeof p.rate === "number" && isFinite(p.rate) && p.rate > 0) data = p;
+var $ = function(id){ return document.getElementById(id); };
+var amt=$("amt"), res=$("res"), dot=$("dot"), asof=$("asof"), rateL=$("rate"),
+    curF=$("curFrom"), curT=$("curTo"), fee=$("fee"), note=$("note"), save=$("save"),
+    panel=$("panel"), list=$("list"), totals=$("totals"), count=$("count"),
+    pick=$("pick"), curList=$("curList"), search=$("search");
+
+var df  = new Intl.DateTimeFormat("fr-CA",{day:"numeric",month:"short"});
+var dfh = new Intl.DateTimeFormat("fr-CA",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+var dfd = new Intl.DateTimeFormat("fr-CA",{weekday:"short",day:"numeric",month:"short"});
+var dfm = new Intl.DateTimeFormat("fr-CA",{month:"long",year:"numeric"});
+var dfl = new Intl.DateTimeFormat("fr-CA",{day:"numeric",month:"long",year:"numeric"});
+
+/* ---- Formatage des montants ---------------------------------------------- */
+// Le nombre de décimales dépend de la devise : le yen n'en a pas, le dinar en a
+// trois. On laisse Intl décider, avec un repli si la devise lui est inconnue.
+var decCache = {};
+function decimals(code){
+  if(decCache[code] !== undefined) return decCache[code];
+  var d = 2;
+  try{
+    d = new Intl.NumberFormat("fr-CA",{style:"currency",currency:code})
+          .resolvedOptions().maximumFractionDigits;
+  }catch(e){}
+  decCache[code] = d;
+  return d;
+}
+var nfCache = {};
+function nf(code){
+  if(nfCache[code]) return nfCache[code];
+  var d = decimals(code);
+  nfCache[code] = new Intl.NumberFormat("fr-CA",{minimumFractionDigits:d,maximumFractionDigits:d});
+  return nfCache[code];
+}
+function num(n, code){ return nf(code).format(n); }
+function money(n, code){ return num(n, code) + " " + code; }
+
+// Nom de la devise dans la langue de l'app, sans table codée en dur.
+var dnames = null;
+try{ dnames = new Intl.DisplayNames(["fr"],{type:"currency"}); }catch(e){}
+function curName(code){
+  if(!dnames) return "";
+  try{ var n = dnames.of(code); return (n && n !== code) ? n : ""; }catch(e){ return ""; }
+}
+
+/* ---- État ----------------------------------------------------------------- */
+var data = loadJSON(LS.rates, null);
+
+// Migration : l'ancienne version ne stockait qu'un taux EUR→CAD. On le
+// convertit en table pour ne pas repartir d'un taux périmé.
+if(!data || !data.rates){
+  var old = loadJSON(LS.rateOld, null);
+  if(old && typeof old.rate === "number" && isFinite(old.rate) && old.rate > 0){
+    data = { base:"EUR", rates:{ EUR:1, CAD:old.rate }, date:old.date, fetched:old.fetched || 0 };
+    store(LS.rates, JSON.stringify(data));
   }
-}catch(e){}
-
-/* ---- Thème : automatique, sombre ou clair -------------------------------- */
-var LS_THEME = "eurocad.theme";
-var THEMES = ["auto", "dark", "light"];
-var GLYPH  = { auto:"\u25D0", dark:"\u263E", light:"\u2600" };
-var LABEL  = { auto:"automatique", dark:"sombre", light:"clair" };
-var BG     = { dark:"#0e1014", light:"#e9edf4" };
-
-var theme = load(LS_THEME);
-if(THEMES.indexOf(theme) < 0) theme = "auto";
-var applying = false;
-
-function prefersDark(){
-  try{ return window.matchMedia("(prefers-color-scheme: dark)").matches; }
-  catch(e){ return false; }
 }
+if(!data || !data.rates || typeof data.rates !== "object") data = SEED;
+if(!data.rates[data.base]) data.rates[data.base] = 1;
 
-function applyTheme(){
-  applying = true;
-  var root = document.documentElement;
-  if(theme === "auto") root.removeAttribute("data-theme");
-  else root.setAttribute("data-theme", theme);
-
-  var btn = $("themeBtn");
-  btn.textContent = GLYPH[theme];
-  btn.setAttribute("aria-label", "Thème : " + LABEL[theme] + ". Toucher pour changer.");
-  btn.title = "Thème : " + LABEL[theme];
-
-  // Barre d'état d'Android : elle doit suivre le thème réellement affiché.
-  var m = $("tc");
-  if(m) m.setAttribute("content", (theme === "dark" || (theme === "auto" && prefersDark()))
-    ? BG.dark : BG.light);
-  applying = false;
+var home = load(LS.home) || "CAD";
+var from = load(LS.from), to = load(LS.to);
+if(!from || !to){
+  // Migration du sens unique EUR↔CAD vers une paire explicite.
+  var dir = load(LS.dirOld);
+  from = dir === "CADEUR" ? "CAD" : "EUR";
+  to   = dir === "CADEUR" ? "EUR" : "CAD";
 }
+var recent = loadJSON(LS.recent, []);
+if(!Array.isArray(recent)) recent = [];
+fee.checked = load(LS.fee) === "1";
 
-// Certains hôtes — le lecteur d'artifacts de claude.ai — imposent leur propre
-// data-theme sur la page. Quand un choix explicite existe, on le réapplique.
-if(window.MutationObserver){
-  new MutationObserver(function(){
-    if(applying || theme === "auto") return;
-    if(document.documentElement.getAttribute("data-theme") !== theme) applyTheme();
-  }).observe(document.documentElement, { attributes:true, attributeFilter:["data-theme"] });
+var view = load(LS.view) || "day";
+if(["day","week","month","trip"].indexOf(view) < 0) view = "day";
+
+var budget = parseFloat(load(LS.budget));
+if(!isFinite(budget) || budget < 0) budget = 0;
+
+var hist = loadJSON(LS.hist, []);
+if(!Array.isArray(hist)) hist = [];
+
+/* ---- Conversion ----------------------------------------------------------- */
+function rateOf(code){
+  var r = data.rates[code];
+  return (typeof r === "number" && isFinite(r) && r > 0) ? r : null;
 }
-
-try{
-  window.matchMedia("(prefers-color-scheme: dark)")
-        .addEventListener("change", function(){ if(theme === "auto") applyTheme(); });
-}catch(e){}
-
-var dir = load(LS_DIR) === "CADEUR" ? "CADEUR" : "EURCAD";
-
-// « = » remplace « 100+50 » par « 150 » dans le champ : sans mémoire, le calcul
-// serait perdu pour l'historique. On retient donc ce qui a été replié, tant que
-// le champ commence toujours par le total produit.
-var folded = null;   // { from:"100+50", to:"150" }
-fee.checked = load(LS_FEE) === "1";
-
-var hist = [];
-try{
-  var rh = load(LS_HIST);
-  if(rh){ var ph = JSON.parse(rh); if(Array.isArray(ph)) hist = ph; }
-}catch(e){}
+function codes(){
+  return Object.keys(data.rates).filter(rateOf).sort();
+}
+// Convertit entre deux devises via la base de la table. Renvoie null si l'une
+// des deux manque : mieux vaut « — » qu'un montant inventé.
+function conv(a, f, t, withFee){
+  var rf = rateOf(f), rt = rateOf(t);
+  if(rf === null || rt === null || !isFinite(a)) return null;
+  var v = a / rf * rt;
+  return withFee ? v * (1 + FEE) : v;
+}
 
 /* ---- Évaluation arithmétique (sans eval) ---------------------------------
    expr := term (('+'|'-') term)*
@@ -366,9 +497,7 @@ function evaluate(src){
   if(!s) return null;
   if(!/^[0-9.+\-*/()]+$/.test(s)) return null;
   var i = 0;
-
   function peek(){ return s.charAt(i); }
-
   function factor(){
     var c = peek();
     if(c === "-"){ i++; var n = factor(); return n === null ? null : -n; }
@@ -383,12 +512,11 @@ function evaluate(src){
     var start = i;
     while(i < s.length && /[0-9.]/.test(s.charAt(i))) i++;
     if(i === start) return null;
-    var num = s.slice(start,i);
-    if(num.split(".").length > 2) return null;
-    var n2 = parseFloat(num);
+    var num2 = s.slice(start,i);
+    if(num2.split(".").length > 2) return null;
+    var n2 = parseFloat(num2);
     return isFinite(n2) ? n2 : null;
   }
-
   function term(){
     var v = factor();
     if(v === null) return null;
@@ -400,7 +528,6 @@ function evaluate(src){
     }
     return v;
   }
-
   function expr(){
     var v = term();
     if(v === null) return null;
@@ -411,7 +538,6 @@ function evaluate(src){
     }
     return v;
   }
-
   var out = expr();
   if(out === null || i !== s.length || !isFinite(out)) return null;
   return out;
@@ -447,15 +573,18 @@ function evalLoose(src){
   }
 }
 
-// Réécrit un total dans le champ : arrondi au centime, sans séparateur de
-// milliers, pour rester ré-analysable par evaluate() au coup suivant.
+// Réécrit un total dans le champ : sans séparateur de milliers, pour rester
+// ré-analysable par evaluate() au coup suivant.
 function plain(n){
   var r = Math.round(n * 100) / 100;
   var s = Math.abs(r - Math.round(r)) < 1e-9 ? String(Math.round(r)) : r.toFixed(2);
   return s.replace(".", ",");
 }
 
-// Recompose le calcul réellement fait : « 150/2 » redevient « (100+50)/2 ».
+// « = » remplace « 100+50 » par « 150 » : sans mémoire, le calcul serait perdu
+// pour l'historique. On retient ce qui a été replié tant que le champ commence
+// toujours par le total produit.
+var folded = null;
 function fullExpr(){
   var v = amt.value.trim();
   if(folded && v.indexOf(folded.to) === 0){
@@ -465,16 +594,49 @@ function fullExpr(){
   return v;
 }
 
-/* ---- Rendu --------------------------------------------------------------- */
-function convert(n){
-  var v = dir === "EURCAD" ? n * data.rate : n / data.rate;
-  // La marge carte renchérit toujours la conversion, quel que soit le sens :
-  // elle répond à « combien ça me coûte vraiment ? ».
-  return fee.checked ? v * (1 + FEE) : v;
-}
+/* ---- Thème : automatique, sombre ou clair -------------------------------- */
+var THEMES = ["auto","dark","light"];
+var GLYPH  = { auto:"◐", dark:"☾", light:"☀" };
+var LABEL  = { auto:"automatique", dark:"sombre", light:"clair" };
+var BG     = { dark:"#0e1014", light:"#e9edf4" };
 
+var theme = load(LS.theme);
+if(THEMES.indexOf(theme) < 0) theme = "auto";
+var applying = false;
+
+function prefersDark(){
+  try{ return window.matchMedia("(prefers-color-scheme: dark)").matches; }
+  catch(e){ return false; }
+}
+function applyTheme(){
+  applying = true;
+  var root = document.documentElement;
+  if(theme === "auto") root.removeAttribute("data-theme");
+  else root.setAttribute("data-theme", theme);
+  var btn = $("themeBtn");
+  btn.textContent = GLYPH[theme];
+  btn.setAttribute("aria-label", "Thème : " + LABEL[theme] + ". Toucher pour changer.");
+  btn.title = "Thème : " + LABEL[theme];
+  var m = $("tc");
+  if(m) m.setAttribute("content", (theme === "dark" || (theme === "auto" && prefersDark()))
+    ? BG.dark : BG.light);
+  applying = false;
+}
+// Certains hôtes — le lecteur d'artifacts de claude.ai — imposent leur propre
+// data-theme sur la page. Quand un choix explicite existe, on le réapplique.
+if(window.MutationObserver){
+  new MutationObserver(function(){
+    if(applying || theme === "auto") return;
+    if(document.documentElement.getAttribute("data-theme") !== theme) applyTheme();
+  }).observe(document.documentElement, { attributes:true, attributeFilter:["data-theme"] });
+}
+try{
+  window.matchMedia("(prefers-color-scheme: dark)")
+        .addEventListener("change", function(){ if(theme === "auto") applyTheme(); });
+}catch(e){}
+
+/* ---- Écran principal ------------------------------------------------------ */
 var asofPinned = false, pinTimer = null;
-// Message temporaire dans l'en-tête, sans déplacer quoi que ce soit.
 function say(msg, ms){
   asofPinned = true;
   asof.textContent = msg;
@@ -485,71 +647,398 @@ function say(msg, ms){
 function render(){
   if(folded && amt.value.trim().indexOf(folded.to) !== 0) folded = null;
 
-  curF.textContent = dir === "EURCAD" ? "EUR" : "CAD";
-  curT.textContent = dir === "EURCAD" ? "CAD" : "EUR";
+  curF.textContent = from;
+  curT.textContent = to;
 
   var v = evalLoose(amt.value);
-  if(amt.value.trim() === "" || v === null){
-    res.textContent = amt.value.trim() === "" ? nf.format(0) : "—";
-    res.classList.toggle("err", amt.value.trim() !== "");
-  }else{
+  var out = (v === null) ? null : conv(v, from, to, fee.checked);
+  if(amt.value.trim() === ""){
+    res.textContent = num(0, to);
     res.classList.remove("err");
-    res.textContent = nf.format(convert(v));
+  }else if(v === null){
+    res.textContent = "—";
+    res.classList.add("err");
+  }else if(out === null){
+    // La paire n'est pas dans la table : hors-ligne avant le premier chargement.
+    res.textContent = "taux manquant";
+    res.classList.add("err");
+  }else{
+    res.textContent = num(out, to);
+    res.classList.remove("err");
   }
 
-  // Le taux affiché doit être celui réellement appliqué au résultat, marge
-  // carte comprise : sinon la ligne du bas contredit le grand chiffre.
-  var shown = dir === "EURCAD" ? data.rate : 1/data.rate;
-  if(fee.checked) shown *= (1 + FEE);
-  var base = (dir === "EURCAD" ? "1 € = " + nf4.format(shown) + " $"
-                               : "1 $ = " + nf4.format(shown) + " €")
-           + (fee.checked ? " (carte)" : "");
-  // Repère mental : toujours exprimé sur le taux EUR→CAD, plus facile à
-  // manipuler de tête (« ÷1,6 ») que le 0,62 de l'autre sens.
-  var cmp    = dir === "EURCAD" ? shown : 1/shown;
-  var round1 = Math.round(cmp*10)/10;
-  rateL.textContent = base + (nf4.format(round1) === nf4.format(cmp)
-    ? ""
-    : "  ·  ≈ " + (dir === "EURCAD" ? "×" : "÷") + nf4.format(round1));
+  var one = conv(1, from, to, fee.checked);
+  if(one === null){
+    rateL.textContent = "taux " + from + "→" + to + " indisponible";
+  }else{
+    var base = "1 " + from + " = " + num(one, to) + " " + to + (fee.checked ? " (carte)" : "");
+    // Repère de calcul mental, uniquement s'il apporte quelque chose.
+    var mult = one >= 1 ? one : 1/one;
+    var r1 = Math.round(mult*10)/10;
+    var same = Math.abs(r1 - mult) < 0.005;
+    rateL.textContent = base + (same || r1 === 0 ? ""
+      : "  ·  ≈ " + (one >= 1 ? "×" : "÷") + r1.toLocaleString("fr-CA",
+          {minimumFractionDigits:1,maximumFractionDigits:1}));
+  }
 
   var age = data.fetched ? Date.now() - data.fetched : Infinity;
   dot.className = age < 864e5 ? "ok" : (age < 3456e5 ? "stale" : "");
 
   if(!asofPinned){
-    var parts = data.date.split("-");
-    var d = new Date(+parts[0], +parts[1]-1, +parts[2]);
-    asof.textContent = data.fetched
-      ? "taux du " + df.format(d)
-      : "taux de secours du " + df.format(d);
+    var parts = String(data.date || "").split("-");
+    var lbl = "";
+    if(parts.length === 3){
+      var d = new Date(+parts[0], +parts[1]-1, +parts[2]);
+      if(isFinite(d.getTime())) lbl = " du " + df.format(d);
+    }
+    asof.textContent = (data.fetched ? "taux" : "taux de secours") + lbl;
   }
 
   count.textContent = hist.length ? String(hist.length) : "";
 }
 
-/* ---- Historique ---------------------------------------------------------- */
+/* ---- Sélecteur de devises ------------------------------------------------- */
+var pickTarget = null;   // "from", "to" ou "home"
+
+function remember(code){
+  recent = recent.filter(function(c){ return c !== code; });
+  recent.unshift(code);
+  if(recent.length > RMAX) recent.length = RMAX;
+  store(LS.recent, JSON.stringify(recent));
+}
+
+function curRow(code, active){
+  var b = document.createElement("button");
+  b.type = "button";
+  b.className = "curItem" + (active ? " on" : "");
+  b.dataset.code = code;
+  var strong = document.createElement("b");
+  strong.textContent = code;
+  b.appendChild(strong);
+  var span = document.createElement("span");
+  span.textContent = curName(code);
+  b.appendChild(span);
+  return b;
+}
+
+function renderPicker(){
+  var q = search.value.trim().toLowerCase();
+  var all = codes();
+  var current = pickTarget === "from" ? from : (pickTarget === "to" ? to : home);
+
+  curList.textContent = "";
+
+  if(!all.length || all.length < 5){
+    var warn = document.createElement("div");
+    warn.id = "empty";
+    warn.textContent = "Connecte-toi une fois pour télécharger toutes les devises. "
+      + "Seules celles déjà en cache sont disponibles hors-ligne.";
+    curList.appendChild(warn);
+  }
+
+  function section(title, arr){
+    if(!arr.length) return;
+    var h = document.createElement("div");
+    h.className = "sect";
+    h.textContent = title;
+    curList.appendChild(h);
+    arr.forEach(function(c){ curList.appendChild(curRow(c, c === current)); });
+  }
+
+  var match = function(c){
+    if(!q) return true;
+    return c.toLowerCase().indexOf(q) === 0 || curName(c).toLowerCase().indexOf(q) >= 0;
+  };
+
+  var rec = recent.filter(function(c){ return all.indexOf(c) >= 0 && match(c); });
+  var rest = all.filter(function(c){ return rec.indexOf(c) < 0 && match(c); });
+
+  if(!q) section("Récentes", rec);
+  else rest = all.filter(match);
+
+  section(q ? "Résultats" : "Toutes les devises", rest);
+
+  if(!rec.length && !rest.length){
+    var none = document.createElement("div");
+    none.id = "empty";
+    none.textContent = "Aucune devise ne correspond.";
+    curList.appendChild(none);
+  }
+}
+
+function openPicker(target){
+  pickTarget = target;
+  $("pickTitle").textContent = target === "from" ? "Devise de départ"
+                             : target === "to"   ? "Devise d'arrivée"
+                             : "Devise de référence";
+  search.value = "";
+  renderPicker();
+  pick.hidden = false;
+  curList.scrollTop = 0;
+}
+function closePicker(){
+  pick.hidden = true;
+  pickTarget = null;
+  amt.focus();
+}
+
+/* ---- Historique : regroupement, totaux, budget ---------------------------- */
+function pad2(n){ return (n < 10 ? "0" : "") + n; }
+
+// Clé de regroupement selon la vue active. La semaine commence le lundi.
+function groupKey(ts){
+  var d = new Date(ts);
+  if(view === "trip") return "trip";
+  if(view === "month") return d.getFullYear() + "-" + pad2(d.getMonth()+1);
+  if(view === "week"){
+    var m = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    m.setDate(m.getDate() - ((m.getDay() + 6) % 7));
+    return "W" + m.getFullYear() + "-" + pad2(m.getMonth()+1) + "-" + pad2(m.getDate());
+  }
+  return d.getFullYear() + "-" + pad2(d.getMonth()+1) + "-" + pad2(d.getDate());
+}
+function groupLabel(ts){
+  var d = new Date(ts);
+  if(view === "trip") return "Voyage complet";
+  if(view === "month") return dfm.format(d);
+  if(view === "week"){
+    var m = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    m.setDate(m.getDate() - ((m.getDay() + 6) % 7));
+    return "Semaine du " + df.format(m);
+  }
+  return dfd.format(d);
+}
+
+// Montant d'une ligne dans la devise de référence. Les lignes enregistrées
+// portent leur propre conversion : un café payé en juin ne doit pas être
+// recalculé au taux d'octobre.
+function homeAmount(e){
+  if(e.home === home && typeof e.homeAmount === "number") return e.homeAmount;
+  if(e.to === home)   return e.result;
+  if(e.from === home) return e.amount;
+  var c = conv(e.amount, e.from, home, !!e.fee);   // repli : taux du jour
+  return c === null ? 0 : c;
+}
+
+function tripTotal(){
+  var s = 0;
+  hist.forEach(function(e){ s += homeAmount(e); });
+  return s;
+}
+function tripDays(){
+  var seen = {};
+  hist.forEach(function(e){
+    var d = new Date(e.ts);
+    seen[d.getFullYear() + "-" + pad2(d.getMonth()+1) + "-" + pad2(d.getDate())] = 1;
+  });
+  return Object.keys(seen).length;
+}
+
+function renderBudget(){
+  var box = $("budget");
+  box.textContent = "";
+  var spent = tripTotal(), days = tripDays();
+
+  var line = document.createElement("div");
+  line.className = "bline";
+  var left = document.createElement("span");
+  if(budget > 0){
+    left.appendChild(document.createTextNode("Budget "));
+    var bb = document.createElement("b");
+    bb.textContent = money(budget, home);
+    left.appendChild(bb);
+  }else{
+    left.textContent = "Aucun budget défini";
+  }
+  line.appendChild(left);
+  var edit = document.createElement("button");
+  edit.type = "button";
+  edit.className = "ghost";
+  edit.id = "setBudget";
+  edit.textContent = budget > 0 ? "Modifier" : "Définir";
+  line.appendChild(edit);
+  box.appendChild(line);
+
+  if(budget > 0){
+    var bar = document.createElement("div");
+    bar.id = "bar";
+    var fill = document.createElement("div");
+    fill.id = "barFill";
+    var pct = Math.min(100, (spent / budget) * 100);
+    fill.style.width = pct + "%";
+    if(spent > budget) fill.className = "over";
+    bar.appendChild(fill);
+    box.appendChild(bar);
+  }
+
+  var sub = document.createElement("div");
+  sub.id = "bsub";
+  var bits = [money(spent, home) + " dépensés"];
+  if(budget > 0){
+    var left2 = budget - spent;
+    bits.push(left2 >= 0 ? money(left2, home) + " restants"
+                         : money(-left2, home) + " de dépassement");
+  }
+  if(days > 0) bits.push(days + (days > 1 ? " jours" : " jour")
+                         + " · " + money(spent / days, home) + " / jour");
+  sub.textContent = bits.join("  ·  ");
+  box.appendChild(sub);
+}
+
+function renderTotals(){
+  // Total dans la devise de référence, puis détail par devise dépensée.
+  var byCur = {};
+  hist.forEach(function(e){ byCur[e.from] = (byCur[e.from] || 0) + e.amount; });
+
+  totals.textContent = "";
+  var mk = function(label, value, isHome){
+    var el = document.createElement("div");
+    el.className = "total" + (isHome ? " home" : "");
+    el.appendChild(document.createTextNode(label + " "));
+    var b = document.createElement("b");
+    b.textContent = value;
+    el.appendChild(b);
+    totals.appendChild(el);
+  };
+  if(!hist.length) return;
+  mk("Total", money(tripTotal(), home), true);
+  Object.keys(byCur).sort().forEach(function(c){
+    if(c !== home) mk("dont", money(byCur[c], c), false);
+  });
+}
+
+function renderList(){
+  list.textContent = "";
+  if(!hist.length){
+    var none = document.createElement("div");
+    none.id = "empty";
+    none.textContent = "Aucune conversion enregistrée.";
+    list.appendChild(none);
+    return;
+  }
+
+  var order = [], groups = {};
+  hist.forEach(function(e, i){
+    var k = groupKey(e.ts);
+    if(!groups[k]){ groups[k] = { label: groupLabel(e.ts), items: [], sum: 0 }; order.push(k); }
+    groups[k].items.push({ e: e, i: i });
+    groups[k].sum += homeAmount(e);
+  });
+
+  order.forEach(function(k){
+    var g = groups[k];
+    var head = document.createElement("div");
+    head.className = "grp";
+    var t = document.createElement("span");
+    t.textContent = g.label;
+    head.appendChild(t);
+    var s = document.createElement("span");
+    s.className = "sum";
+    s.textContent = money(g.sum, home);
+    head.appendChild(s);
+    list.appendChild(head);
+
+    g.items.forEach(function(o){
+      var e = o.e;
+      var it = document.createElement("div");
+      it.className = "item";
+
+      var main = document.createElement("div");
+      main.className = "main";
+
+      var cv = document.createElement("div");
+      cv.className = "conv";
+      cv.appendChild(document.createTextNode(money(e.amount, e.from)));
+      var ar = document.createElement("span");
+      ar.className = "arrow";
+      ar.textContent = "→";
+      cv.appendChild(ar);
+      cv.appendChild(document.createTextNode(money(e.result, e.to)));
+      main.appendChild(cv);
+
+      // Construit en textContent, jamais en innerHTML : la note est du texte libre.
+      var bits = [];
+      if(e.expr) bits.push(e.expr);
+      if(e.fee)  bits.push("carte");
+      if(e.to !== home && e.from !== home) bits.push("= " + money(homeAmount(e), home));
+      bits.push(dfh.format(new Date(e.ts)));
+
+      var meta = document.createElement("div");
+      meta.className = "meta";
+      if(e.note){
+        var n = document.createElement("span");
+        n.className = "note";
+        n.textContent = e.note;
+        meta.appendChild(n);
+        meta.appendChild(document.createTextNode(" · "));
+      }
+      meta.appendChild(document.createTextNode(bits.join(" · ")));
+      main.appendChild(meta);
+      it.appendChild(main);
+
+      var del = document.createElement("button");
+      del.className = "del";
+      del.type = "button";
+      del.textContent = "×";
+      del.setAttribute("aria-label", "Supprimer cette ligne");
+      del.dataset.i = String(o.i);
+      it.appendChild(del);
+
+      list.appendChild(it);
+    });
+  });
+}
+
+function renderHist(){
+  var vb = $("views").children;
+  for(var i = 0; i < vb.length; i++){
+    vb[i].className = vb[i].dataset.view === view ? "on" : "";
+  }
+  renderBudget();
+  renderTotals();
+  renderList();
+
+  // En-tête visible uniquement à l'impression.
+  var sub = [dfl.format(new Date())];
+  if(hist.length){
+    var last = hist[0].ts, first = hist[hist.length-1].ts;
+    sub.push("Du " + dfl.format(new Date(first)) + " au " + dfl.format(new Date(last)));
+    sub.push(hist.length + (hist.length > 1 ? " conversions" : " conversion"));
+  }
+  $("printSub").textContent = sub.join("  ·  ");
+}
+
 function persist(){
-  store(LS_HIST, JSON.stringify(hist));
+  store(LS.hist, JSON.stringify(hist));
   render();
   if(!panel.hidden) renderHist();
 }
+function openHist(){ renderHist(); panel.hidden = false; }
+function closeHist(){ panel.hidden = true; amt.focus(); }
 
+/* ---- Enregistrement d'une ligne ------------------------------------------- */
 var doneTimer = null;
 function addEntry(){
   var v = evalLoose(amt.value);
-  if(amt.value.trim() === "" || v === null) return;   // rien de valide à garder
+  if(amt.value.trim() === "" || v === null) return;
+  var out = conv(v, from, to, fee.checked);
+  if(out === null) return;                       // taux manquant : rien à garder
 
   var typed = fullExpr();
+  var h = conv(v, from, home, fee.checked);
   hist.unshift({
     ts: Date.now(),
-    from: dir === "EURCAD" ? "EUR" : "CAD",
-    to:   dir === "EURCAD" ? "CAD" : "EUR",
+    from: from, to: to,
     // Valeurs brutes : le formatage arrondit à l'affichage. Arrondir ici aussi
     // ferait diverger les totaux d'un centime.
     amount: v,
-    result: convert(v),
+    result: out,
+    // Figé au taux du jour : un achat ne doit pas être recalculé plus tard.
+    home: home,
+    homeAmount: h === null ? 0 : h,
     // On ne garde le calcul que s'il en était un : « 34,90 » n'a rien à montrer.
     expr: typed === plain(v) ? "" : typed,
-    fee:  fee.checked,
+    fee: fee.checked,
     note: note.value.trim()
   });
   if(hist.length > HMAX) hist.length = HMAX;
@@ -565,91 +1054,9 @@ function addEntry(){
   }, 1300);
 }
 
-function renderHist(){
-  // Totaux par devise d'arrivée : mélanger les deux sens n'aurait aucun sens.
-  var sums = {};
-  hist.forEach(function(e){ sums[e.to] = (sums[e.to] || 0) + e.result; });
-
-  totals.textContent = "";
-  Object.keys(sums).forEach(function(cur){
-    var el = document.createElement("div");
-    el.className = "total";
-    el.appendChild(document.createTextNode("Total " + cur + " : "));
-    var b = document.createElement("b");
-    b.textContent = nf.format(sums[cur]);
-    el.appendChild(b);
-    totals.appendChild(el);
-  });
-
-  list.textContent = "";
-  if(!hist.length){
-    var none = document.createElement("div");
-    none.id = "empty";
-    none.textContent = "Aucune conversion enregistrée.";
-    list.appendChild(none);
-    return;
-  }
-
-  hist.forEach(function(e, i){
-    var it = document.createElement("div");
-    it.className = "item";
-
-    var main = document.createElement("div");
-    main.className = "main";
-
-    var conv = document.createElement("div");
-    conv.className = "conv";
-    conv.appendChild(document.createTextNode(nf.format(e.amount) + " " + e.from));
-    var ar = document.createElement("span");
-    ar.className = "arrow";
-    ar.textContent = "→";
-    conv.appendChild(ar);
-    conv.appendChild(document.createTextNode(nf.format(e.result) + " " + e.to));
-    main.appendChild(conv);
-
-    // Construit en textContent, jamais en innerHTML : la note est du texte libre.
-    var bits = [];
-    if(e.expr) bits.push(e.expr);
-    if(e.fee)  bits.push("carte");
-    bits.push(dfh.format(new Date(e.ts)));
-
-    var meta = document.createElement("div");
-    meta.className = "meta";
-    if(e.note){
-      var n = document.createElement("span");
-      n.className = "note";
-      n.textContent = e.note;
-      meta.appendChild(n);
-      meta.appendChild(document.createTextNode(" · "));
-    }
-    meta.appendChild(document.createTextNode(bits.join(" · ")));
-    main.appendChild(meta);
-
-    it.appendChild(main);
-
-    var del = document.createElement("button");
-    del.className = "del";
-    del.type = "button";
-    del.textContent = "×";
-    del.setAttribute("aria-label", "Supprimer cette ligne");
-    del.dataset.i = String(i);
-    it.appendChild(del);
-
-    list.appendChild(it);
-  });
-}
-
-function openHist(){ renderHist(); panel.hidden = false; }
-function closeHist(){ panel.hidden = true; amt.focus(); }
-
-/* ---- Interactions -------------------------------------------------------- */
+/* ---- Interactions --------------------------------------------------------- */
 amt.addEventListener("input", render);
-
-// Revenir au champ sélectionne le montant précédent : taper le remplace
-// directement, sans passer par le retour arrière.
-amt.addEventListener("focus", function(){
-  try{ amt.select(); }catch(e){}
-});
+amt.addEventListener("focus", function(){ try{ amt.select(); }catch(e){} });
 
 $("keys").addEventListener("pointerdown", function(e){
   var b = e.target.closest("button");
@@ -660,7 +1067,7 @@ $("keys").addEventListener("pointerdown", function(e){
 
   if(b.id === "eq"){
     // Replie « 100+50 » en « 150 » pour enchaîner « /2 ». Sans ça il faudrait
-    // prévoir une parenthèse avant de commencer à taper, ce que personne ne fait.
+    // prévoir une parenthèse avant de taper le premier chiffre.
     var total = evalLoose(val);
     if(total !== null){
       var before = val.trim();
@@ -669,9 +1076,7 @@ $("keys").addEventListener("pointerdown", function(e){
       if(before !== amt.value) folded = { from: before, to: amt.value };
     }
   }else if(b.id === "ac"){
-    amt.value = "";
-    s = 0;
-    folded = null;
+    amt.value = ""; s = 0; folded = null;
   }else if(b.id === "clr"){
     if(s !== en){ amt.value = val.slice(0,s) + val.slice(en); }
     else if(s > 0){ amt.value = val.slice(0,s-1) + val.slice(s); s--; }
@@ -687,28 +1092,62 @@ $("keys").addEventListener("pointerdown", function(e){
 });
 
 $("swap").addEventListener("click", function(){
-  dir = dir === "EURCAD" ? "CADEUR" : "EURCAD";
-  store(LS_DIR, dir);
+  var t = from; from = to; to = t;
+  store(LS.from, from); store(LS.to, to);
   render();
   amt.focus();
 });
 
 fee.addEventListener("change", function(){
-  store(LS_FEE, fee.checked ? "1" : "0");
+  store(LS.fee, fee.checked ? "1" : "0");
   render();
 });
 
 save.addEventListener("click", addEntry);
 note.addEventListener("keydown", function(e){ if(e.key === "Enter") addEntry(); });
 
+curF.addEventListener("click", function(){ openPicker("from"); });
+curT.addEventListener("click", function(){ openPicker("to"); });
+$("pickClose").addEventListener("click", closePicker);
+search.addEventListener("input", renderPicker);
+
+curList.addEventListener("click", function(e){
+  var b = e.target.closest(".curItem");
+  if(!b) return;
+  var code = b.dataset.code;
+  if(pickTarget === "from"){
+    if(code === to) to = from;               // éviter une paire identique
+    from = code;
+  }else if(pickTarget === "to"){
+    if(code === from) from = to;
+    to = code;
+  }else{
+    home = code;
+    store(LS.home, home);
+  }
+  store(LS.from, from); store(LS.to, to);
+  remember(code);
+  closePicker();
+  render();
+  if(!panel.hidden) renderHist();
+});
+
 $("themeBtn").addEventListener("click", function(){
   theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
-  store(LS_THEME, theme);
+  store(LS.theme, theme);
   applyTheme();
 });
 
 $("histBtn").addEventListener("click", openHist);
 $("close").addEventListener("click", closeHist);
+
+$("views").addEventListener("click", function(e){
+  var b = e.target.closest("button");
+  if(!b) return;
+  view = b.dataset.view;
+  store(LS.view, view);
+  renderHist();
+});
 
 list.addEventListener("click", function(e){
   var b = e.target.closest(".del");
@@ -717,20 +1156,39 @@ list.addEventListener("click", function(e){
   persist();
 });
 
+$("budget").addEventListener("click", function(e){
+  if(!e.target.closest("#setBudget")) return;
+  var cur = budget > 0 ? plain(budget) : "";
+  var ans = prompt("Budget du voyage en " + home + " (laisser vide pour retirer) :", cur);
+  if(ans === null) return;
+  var n = evalLoose(ans);
+  budget = (ans.trim() === "" || n === null || n < 0) ? 0 : n;
+  store(LS.budget, String(budget));
+  renderHist();
+});
+
+$("print").addEventListener("click", function(){
+  // window.print() plutôt qu'une bibliothèque PDF : Android propose
+  // « Enregistrer au format PDF » dans sa boîte d'impression, sans un octet
+  // de dépendance et sans réseau.
+  try{ window.print(); }
+  catch(e){ say("impression indisponible ici", 3000); }
+});
+
 $("wipe").addEventListener("click", function(){
   if(!hist.length) return;
-  if(!confirm("Effacer tout l'historique ?")) return;
+  if(!confirm("Effacer tout l'historique ?\n\nPense à l'imprimer en PDF avant, si tu veux le garder.")) return;
   hist = [];
   persist();
 });
 
 document.addEventListener("keydown", function(e){
-  if(e.key === "Escape" && !panel.hidden) closeHist();
+  if(e.key !== "Escape") return;
+  if(!pick.hidden) closePicker();
+  else if(!panel.hidden) closeHist();
 });
 
-// Ajuste l'app à la zone réellement visible. Sans ça, le clavier d'Android
-// recouvre la moitié basse : Chrome ne redimensionne pas la fenêtre, il se
-// contente de réduire la zone visible, ce qu'aucune media query ne détecte.
+/* ---- Zone visible : le clavier d'Android ne redimensionne pas la fenêtre --- */
 function fitViewport(){
   var vv = window.visualViewport;
   var h  = vv ? vv.height : window.innerHeight;
@@ -758,39 +1216,42 @@ function refresh(i, manual){
   // Défensif : un écouteur d'événement passerait l'objet Event en 1er argument.
   if(typeof i !== "number" || !(i >= 0)) i = 0;
   if(i === 0) lastErr = "";
-  if(i >= SOURCES.length){          // hors-ligne : on garde le taux en cache
+  if(i >= SOURCES.length){
     if(manual) say("v" + VERSION + " · échec : " + (lastErr || "réseau"), 6000);
     return;
   }
   var src = SOURCES[i];
-  fetch(src.url, { cache: "no-store" })
-    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+  fetch(src.url, { cache:"no-store" })
+    .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
     .then(function(j){
       var got = src.pick(j);
-      var v = got && got.rate;
-      if(typeof v !== "number" || !isFinite(v) || v <= 0) throw 0;
-      data = {
-        rate: v,
-        date: got.date || new Date().toISOString().slice(0,10),
-        fetched: Date.now()
-      };
-      store(LS_RATE, JSON.stringify(data));
+      if(!got || !got.rates || typeof got.rates !== "object") throw new Error("réponse inattendue");
+      var n = 0;
+      for(var k in got.rates){ if(typeof got.rates[k] === "number") n++; }
+      if(n < 2) throw new Error("table vide");
+      got.rates[got.base] = 1;
+      data = { base:got.base, rates:got.rates,
+               date: got.date || new Date().toISOString().slice(0,10),
+               fetched: Date.now() };
+      store(LS.rates, JSON.stringify(data));
+      drop(LS.rateOld);                       // l'ancien format ne sert plus
       asofPinned = false;
       render();
-      if(manual) say("v" + VERSION + " · taux mis à jour", 2500);
+      if(!pick.hidden) renderPicker();
+      if(manual) say("v" + VERSION + " · " + n + " devises à jour", 2500);
     })
     .catch(function(err){
-      lastErr = (err && err.message) ? String(err.message).slice(0, 60) : "indisponible";
-      refresh(i + 1, manual);                // source suivante
+      lastErr = (err && err.message) ? String(err.message).slice(0,60) : "indisponible";
+      refresh(i + 1, manual);                 // source suivante
     });
 }
 refresh();
 
-// Toucher l'en-tête force un essai et affiche la version réellement servie.
 asof.addEventListener("click", function(){
   say("v" + VERSION + " · mise à jour…", 8000);
   refresh(0, true);
 });
+
 window.addEventListener("online", function(){ refresh(); });
 document.addEventListener("visibilitychange", function(){
   if(!document.hidden && Date.now() - (data.fetched||0) > 36e5) refresh();
@@ -809,7 +1270,7 @@ if("serviceWorker" in navigator){
   });
   window.addEventListener("load", function(){
     try{
-      navigator.serviceWorker.register("sw.js", { updateViaCache: "none" })
+      navigator.serviceWorker.register("sw.js", { updateViaCache:"none" })
         .then(function(reg){ try{ reg.update(); }catch(e){} })
         .catch(function(){});
     }catch(e){}
